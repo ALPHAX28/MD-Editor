@@ -28,6 +28,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/components/theme-provider"
 import { dark, neobrutalism, shadesOfPurple } from "@clerk/themes";
 import NextLink from 'next/link'
+import { useAutosave } from '@/hooks/use-autosave'
+import { SaveStatusIndicator } from "@/components/save-status"
 
 type CodeProps = {
   inline?: boolean;
@@ -47,36 +49,7 @@ type ClerkAppearance = {
 };
 
 export function MarkdownEditor() {
-  const [content, setContent] = useState(`# Welcome to the Markdown Editor
-
-This editor supports GitHub-flavored markdown.
-
-## Features
-
-### Text Formatting
-- **Bold text**
-- *Italic text*
-- ~~Strikethrough~~
-
-### Lists
-1. Numbered list
-2. With multiple items
-
-- Bullet points
-- Another point
-
-### Code
-\`\`\`javascript
-function hello() {
-  console.log("Hello world!");
-}
-\`\`\`
-
-### Tables
-| Header 1 | Header 2 |
-|----------|----------|
-| Cell 1   | Cell 2   |
-`)
+  const { content, setContent, lastSaved, saveStatus } = useAutosave()
   const [tab, setTab] = useState('write')
   const [darkMode, setDarkMode] = useState(false)
   const [isPdfExporting, setIsPdfExporting] = useState(false)
@@ -572,8 +545,8 @@ ${previewContent}
             </div>
           </div>
 
-          <Tabs value={tab} onValueChange={setTab} className="min-h-[600px] pt-2">
-            <div className="border-b px-4 pb-2">
+          <Tabs value={tab} onValueChange={setTab} className="min-h-[600px] pt-2 relative">
+            <div className="border-b px-4 pb-2 flex justify-between items-center">
               <TabsList className="border-0 bg-muted">
                 <TabsTrigger 
                   value="write" 
@@ -588,6 +561,9 @@ ${previewContent}
                   Preview
                 </TabsTrigger>
               </TabsList>
+              <div className="ml-auto">
+                <SaveStatusIndicator status={saveStatus} />
+              </div>
             </div>
             
             <AnimatePresence mode="wait">
@@ -731,29 +707,90 @@ ${previewContent}
         </DialogContent>
       </Dialog>
       <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
-        <DialogContent className="sm:max-w-[425px] w-[95%] p-0 sm:p-6">
-          <DialogHeader className="text-center p-4 sm:p-0">
-            <DialogTitle>Authentication Required</DialogTitle>
-            <DialogDescription>
-              Please sign in to export your document.
+        <DialogContent className="sm:max-w-[480px] p-0 bg-background">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="text-center">Authentication Required</DialogTitle>
+            <DialogDescription className="text-center">
+              Please sign in to export your document
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center items-center mt-4 w-full overflow-hidden">
+          <div className="flex items-center justify-center w-full px-6 pb-6">
             <SignIn 
-              redirectUrl={window?.location?.pathname}
+              afterSignInUrl={window?.location?.pathname}
               appearance={{
+                baseTheme: theme === "dark" ? dark : undefined,
                 elements: {
-                  card: "mx-auto w-full sm:w-auto px-4 sm:px-0",
-                  rootBox: "w-full",
-                  formButtonPrimary: "mx-auto",
-                  footerAction: "mx-auto flex flex-col sm:flex-row gap-2 items-center",
-                  formFieldInput: "max-w-full",
-                  formField: "max-w-full",
-                  form: "w-full",
-                  socialButtons: "w-full",
-                  socialButtonsBlockButton: "w-full",
-                  dividerRow: "w-full",
-                  formFieldRow: "w-full"
+                  rootBox: {
+                    width: "100%",
+                    margin: "0 auto",
+                    maxWidth: "400px"
+                  },
+                  card: {
+                    boxShadow: "none",
+                    width: "100%",
+                    background: "transparent",
+                    margin: "0 auto"
+                  },
+                  headerTitle: { display: "none" },
+                  headerSubtitle: { display: "none" },
+                  socialButtonsBlockButton: {
+                    border: "1px solid hsl(var(--border))",
+                    background: "transparent",
+                    color: "hsl(var(--foreground))",
+                    width: "100%"
+                  },
+                  formFieldInput: {
+                    background: "transparent",
+                    border: "1px solid hsl(var(--border))",
+                    color: "hsl(var(--foreground))",
+                    width: "100%"
+                  },
+                  formFieldLabel: {
+                    color: "hsl(var(--foreground))",
+                    fontSize: "14px"
+                  },
+                  formFieldLabelRow: {
+                    color: "hsl(var(--foreground))"
+                  },
+                  formButtonPrimary: {
+                    backgroundColor: "hsl(var(--primary))",
+                    color: "hsl(var(--background))",
+                    width: "100%"
+                  },
+                  footerActionLink: {
+                    color: "hsl(var(--primary))"
+                  },
+                  footer: {
+                    color: "hsl(var(--muted-foreground))",
+                    textAlign: "center"
+                  },
+                  footerText: {
+                    color: "hsl(var(--muted-foreground))"
+                  },
+                  dividerLine: {
+                    background: "hsl(var(--border))"
+                  },
+                  dividerText: {
+                    color: "hsl(var(--muted-foreground))"
+                  },
+                  form: {
+                    width: "100%"
+                  },
+                  formField: {
+                    width: "100%"
+                  },
+                  formFieldAction: {
+                    color: "hsl(var(--primary))"
+                  },
+                  identityPreviewText: {
+                    color: "hsl(var(--foreground))"
+                  },
+                  formFieldHintText: {
+                    color: "hsl(var(--muted-foreground))"
+                  },
+                  footerActionText: {
+                    color: "hsl(var(--muted-foreground))"
+                  }
                 }
               }}
             />
