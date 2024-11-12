@@ -103,6 +103,29 @@ function hello() {
     }, 0)
   }
 
+  const handlePdfExport = async () => {
+    const isDarkMode = document.documentElement.classList.contains('dark')
+    
+    try {
+      if (isDarkMode) {
+        document.documentElement.classList.remove('dark')
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      await toPDF()
+      
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark')
+      }
+    } catch (error) {
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark')
+      }
+      throw error
+    }
+  }
+
   const handleExport = async (type: 'PDF' | 'Word' | 'HTML') => {
     if (tab !== 'preview') {
       setDialogMessage(`Please switch to the Preview tab before exporting to ${type}.`)
@@ -114,7 +137,7 @@ function hello() {
       switch (type) {
         case 'PDF':
           setIsPdfExporting(true)
-          await exportToPDF()
+          await handlePdfExport()
           break
         case 'Word':
           setIsWordExporting(true)
@@ -128,7 +151,6 @@ function hello() {
     } catch (error) {
       console.error(`Error exporting ${type}:`, error)
     } finally {
-      // Reset all loading states
       setIsPdfExporting(false)
       setIsWordExporting(false)
       setIsHtmlExporting(false)
