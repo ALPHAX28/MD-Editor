@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,8 +14,6 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePDF } from 'react-to-pdf'
-import mammoth from 'mammoth'
-import { Components } from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import {
   Dialog,
@@ -25,17 +23,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
-type CodeBlockProps = {
+type CodeProps = {
   inline?: boolean;
   className?: string;
   children: string | string[];
-  [key: string]: any;
-};
-
-type MarkdownProps = {
-  children: React.ReactNode;
-  className?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 export function MarkdownEditor() {
@@ -548,21 +540,6 @@ ${previewContent}
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeRaw]}
                       components={{
-                        h1: ({ children }) => (
-                          <h1 className="text-3xl font-bold border-b border-gray-200 dark:border-gray-700 pb-4 mb-4">
-                            {children}
-                          </h1>
-                        ),
-                        h2: ({ children }) => (
-                          <h2 className="text-2xl font-bold border-b border-gray-200 dark:border-gray-700 pb-3 mb-4 mt-8">
-                            {children}
-                          </h2>
-                        ),
-                        h3: ({ children }) => (
-                          <h3 className="text-xl font-bold mb-4 mt-6">
-                            {children}
-                          </h3>
-                        ),
                         code: function Code({ inline, className, children, ...props }: any) {
                           const match = /language-(\w+)/.exec(className || '')
                           return inline ? (
@@ -584,6 +561,21 @@ ${previewContent}
                             </code>
                           )
                         },
+                        h1: ({ children }) => (
+                          <h1 className="text-3xl font-bold border-b border-gray-200 dark:border-gray-700 pb-4 mb-4">
+                            {children}
+                          </h1>
+                        ),
+                        h2: ({ children }) => (
+                          <h2 className="text-2xl font-bold border-b border-gray-200 dark:border-gray-700 pb-3 mb-4 mt-8">
+                            {children}
+                          </h2>
+                        ),
+                        h3: ({ children }) => (
+                          <h3 className="text-xl font-bold mb-4 mt-6">
+                            {children}
+                          </h3>
+                        ),
                         table: ({ children }) => (
                           <div className="overflow-x-auto -mx-4 sm:mx-0 my-4">
                             <div className="min-w-max px-4 sm:px-0">
