@@ -20,6 +20,8 @@ model Document {
   userId    String   // This will store the Clerk user ID
   isPublic  Boolean  @default(false)
   isAutosave  Boolean  @default(false)
+
+  @@unique([userId, isAutosave])
 }
 
 // Your models will go here 
