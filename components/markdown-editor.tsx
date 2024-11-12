@@ -21,13 +21,28 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
+import { useAuth, SignIn, SignUp, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { useToast } from "@/hooks/use-toast"
+import { useTheme } from "@/components/theme-provider"
+import { dark, neobrutalism, shadesOfPurple } from "@clerk/themes";
 
 type CodeProps = {
   inline?: boolean;
   className?: string;
   children: string | string[];
   [key: string]: unknown;
+};
+
+type ClerkAppearance = {
+  baseTheme?: 'dark' | 'light';
+  elements?: {
+    card?: string;
+    rootBox?: string;
+    formButtonPrimary?: string;
+    [key: string]: any;
+  };
 };
 
 export function MarkdownEditor() {
@@ -69,6 +84,10 @@ function hello() {
   const { toPDF, targetRef } = usePDF({filename: 'markdown-document.pdf'})
   const [showDialog, setShowDialog] = useState(false)
   const [dialogMessage, setDialogMessage] = useState('')
+  const { isLoaded, isSignedIn } = useAuth();
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const { toast } = useToast()
+  const { theme } = useTheme()
 
   useEffect(() => {
     if (darkMode) {
@@ -127,6 +146,13 @@ function hello() {
   }
 
   const handleExport = async (type: 'PDF' | 'Word' | 'HTML') => {
+    if (!isLoaded) return;
+
+    if (!isSignedIn) {
+      setShowAuthDialog(true);
+      return;
+    }
+
     if (tab !== 'preview') {
       setDialogMessage(`Please switch to the Preview tab before exporting to ${type}.`)
       setShowDialog(true)
@@ -263,6 +289,15 @@ ${previewContent}
     }
   }
 
+  const handleSignInSuccess = () => {
+    setShowAuthDialog(false)
+    toast({
+      title: "Success",
+      description: "Successfully signed in!",
+      duration: 3000,
+    })
+  }
+
   return (
     <div className="container mx-auto p-2 sm:p-6 dark:bg-gray-900 dark:text-white min-h-screen">
       <motion.div 
@@ -273,14 +308,36 @@ ${previewContent}
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold">Markdown Editor</h1>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setDarkMode(!darkMode)}
-              className="ml-auto"
-            >
-              {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
+            <div className="flex items-center gap-2">
+              {isLoaded && (
+                <>
+                  {isSignedIn ? (
+                    <UserButton afterSignOutUrl={window?.location?.href} />
+                  ) : (
+                    <>
+                      <SignInButton mode="modal">
+                        <Button variant="outline" size="sm">
+                          Sign in
+                        </Button>
+                      </SignInButton>
+                      <SignUpButton mode="modal">
+                        <Button variant="outline" size="sm">
+                          Sign up
+                        </Button>
+                      </SignUpButton>
+                    </>
+                  )}
+                </>
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setDarkMode(!darkMode)}
+                className="ml-2"
+              >
+                {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
           <div className="grid grid-cols-3 sm:flex sm:flex-row gap-2">
             <Button
@@ -657,6 +714,30 @@ ${previewContent}
               {dialogMessage}
             </DialogDescription>
           </DialogHeader>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader className="text-center">
+            <DialogTitle>Authentication Required</DialogTitle>
+            <DialogDescription>
+              Please sign in to export your document.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center items-center mt-4">
+            <SignIn 
+              afterSignInUrl={window?.location?.href} 
+              appearance={{
+                elements: {
+                  card: "mx-auto",
+                  rootBox: "mx-auto",
+                  formButtonPrimary: "mx-auto"
+                }
+              }}
+              signUpUrl="/sign-up"
+              redirectUrl={window?.location?.href}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>
