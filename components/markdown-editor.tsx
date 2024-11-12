@@ -717,21 +717,29 @@ ${previewContent}
         </DialogContent>
       </Dialog>
       <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader className="text-center">
+        <DialogContent className="sm:max-w-[425px] w-[95%] p-0 sm:p-6">
+          <DialogHeader className="text-center p-4 sm:p-0">
             <DialogTitle>Authentication Required</DialogTitle>
             <DialogDescription>
               Please sign in to export your document.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center items-center mt-4">
+          <div className="flex justify-center items-center mt-4 w-full overflow-hidden">
             <SignIn 
               afterSignInUrl={window?.location?.href} 
               appearance={{
                 elements: {
-                  card: "mx-auto",
-                  rootBox: "mx-auto",
-                  formButtonPrimary: "mx-auto"
+                  card: "mx-auto w-full sm:w-auto px-4 sm:px-0",
+                  rootBox: "w-full",
+                  formButtonPrimary: "mx-auto",
+                  footerAction: "mx-auto flex flex-col sm:flex-row gap-2 items-center",
+                  formFieldInput: "max-w-full",
+                  formField: "max-w-full",
+                  form: "w-full",
+                  socialButtons: "w-full",
+                  socialButtonsBlockButton: "w-full",
+                  dividerRow: "w-full",
+                  formFieldRow: "w-full"
                 }
               }}
               signUpUrl="/sign-up"
