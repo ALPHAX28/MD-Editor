@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Bold, Italic, Underline, List, Image as ImageIcon, Link, Table, FileDown, Code, Quote, Heading1, Heading2, Heading3, CheckSquare, Strikethrough, Moon, Sun, Loader2 } from 'lucide-react'
+import { Bold, Italic, Underline, List, Image as ImageIcon, Link as LinkIcon, Table, FileDown, Code, Quote, Heading1, Heading2, Heading3, CheckSquare, Strikethrough, Moon, Sun, Loader2 } from 'lucide-react'
 import { saveAs } from 'file-saver'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -23,10 +23,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useAuth, SignIn, SignUp, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { useAuth, SignIn, SignUp, UserButton, SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/components/theme-provider"
 import { dark, neobrutalism, shadesOfPurple } from "@clerk/themes";
+import NextLink from 'next/link'
 
 type CodeProps = {
   inline?: boolean;
@@ -84,7 +85,8 @@ function hello() {
   const { toPDF, targetRef } = usePDF({filename: 'markdown-document.pdf'})
   const [showDialog, setShowDialog] = useState(false)
   const [dialogMessage, setDialogMessage] = useState('')
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { user } = useUser();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const { toast } = useToast()
   const { theme } = useTheme()
@@ -307,20 +309,32 @@ ${previewContent}
       >
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Markdown Editor</h1>
+            <NextLink href="/" className="hover:opacity-80 transition-opacity">
+              <h1 className="text-2xl font-bold cursor-pointer">
+                {isLoaded && (
+                  isSignedIn ? (
+                    <>Welcome {user?.firstName || user?.username}</>
+                  ) : (
+                    <>Welcome Guest</>
+                  )
+                )}
+              </h1>
+            </NextLink>
             <div className="flex items-center gap-2">
               {isLoaded && (
                 <>
                   {isSignedIn ? (
-                    <UserButton afterSignOutUrl={window?.location?.href} />
+                    <UserButton 
+                      afterSignOutUrl={`${window?.location?.pathname}?reload=true`}
+                    />
                   ) : (
                     <>
-                      <SignInButton mode="modal">
+                      <SignInButton mode="modal" afterSignInUrl={window?.location?.pathname}>
                         <Button variant="outline" size="sm">
                           Sign in
                         </Button>
                       </SignInButton>
-                      <SignUpButton mode="modal">
+                      <SignUpButton mode="modal" afterSignUpUrl={window?.location?.pathname}>
                         <Button variant="outline" size="sm">
                           Sign up
                         </Button>
@@ -522,7 +536,7 @@ ${previewContent}
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="sm">
-                    <Link className="h-4 w-4" />
+                    <LinkIcon className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-80">
@@ -726,7 +740,7 @@ ${previewContent}
           </DialogHeader>
           <div className="flex justify-center items-center mt-4 w-full overflow-hidden">
             <SignIn 
-              afterSignInUrl={window?.location?.href} 
+              redirectUrl={window?.location?.pathname}
               appearance={{
                 elements: {
                   card: "mx-auto w-full sm:w-auto px-4 sm:px-0",
@@ -742,8 +756,6 @@ ${previewContent}
                   formFieldRow: "w-full"
                 }
               }}
-              signUpUrl="/sign-up"
-              redirectUrl={window?.location?.href}
             />
           </div>
         </DialogContent>

@@ -30,15 +30,12 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-            <Toaster />
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}>
+          <ThemeProvider>
+            <div className="min-h-screen bg-background text-foreground">
+              {children}
+              <Toaster />
+            </div>
           </ThemeProvider>
         </body>
       </html>
