@@ -19,6 +19,7 @@ model Document {
   updatedAt DateTime @updatedAt
   userId    String   // This will store the Clerk user ID
   isPublic  Boolean  @default(false)
+  isAutosave  Boolean  @default(false)
 }
 
 // Your models will go here 
