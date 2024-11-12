@@ -400,6 +400,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('**', '**')}
+                title="Bold"
               >
                 <Bold className="h-4 w-4" />
               </Button>
@@ -407,6 +408,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('*', '*')}
+                title="Italic"
               >
                 <Italic className="h-4 w-4" />
               </Button>
@@ -414,6 +416,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('<u>', '</u>')}
+                title="Underline"
               >
                 <Underline className="h-4 w-4" />
               </Button>
@@ -421,6 +424,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('~~', '~~')}
+                title="Strikethrough"
               >
                 <Strikethrough className="h-4 w-4" />
               </Button>
@@ -428,6 +432,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('\n- ')}
+                title="List"
               >
                 <List className="h-4 w-4" />
               </Button>
@@ -435,6 +440,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('# ')}
+                title="Heading 1"
               >
                 <Heading1 className="h-4 w-4" />
               </Button>
@@ -442,6 +448,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('## ')}
+                title="Heading 2"
               >
                 <Heading2 className="h-4 w-4" />
               </Button>
@@ -449,6 +456,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('### ')}
+                title="Heading 3"
               >
                 <Heading3 className="h-4 w-4" />
               </Button>
@@ -456,6 +464,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('> ')}
+                title="Quote"
               >
                 <Quote className="h-4 w-4" />
               </Button>
@@ -463,6 +472,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('`', '`')}
+                title="Code"
               >
                 <Code className="h-4 w-4" />
               </Button>
@@ -470,6 +480,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('- [ ] ')}
+                title="Task List"
               >
                 <CheckSquare className="h-4 w-4" />
               </Button>
@@ -477,6 +488,7 @@ ${previewContent}
                 variant="ghost" 
                 size="sm" 
                 onClick={() => insertAtCursor('\n---\n')}
+                title="Horizontal Rule"
               >
                 <span className="h-4 w-4 flex items-center justify-center font-mono">--</span>
               </Button>
