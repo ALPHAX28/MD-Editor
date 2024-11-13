@@ -45,18 +45,19 @@ export async function POST(req: Request) {
       },
     })
 
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as Error
     console.error('Full error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
     })
 
     return new NextResponse(
       JSON.stringify({
         error: 'Failed to create document',
-        details: error.message,
-        type: error.name,
+        details: err.message,
+        type: err.name,
       }), 
       { 
         status: 500,
