@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs"
-import { ArrowRight, Check, FileDown, Github, Moon, Sun } from "lucide-react"
+import { ArrowRight, Check, FileDown, Github, Moon, Sun, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -18,7 +18,7 @@ export default function LandingPage() {
     "Syntax highlighting",
     "Table support",
     "Task lists",
-    "Auto-save (coming soon)",
+    "Auto-save feature (Now Live! 🎉)",
     "Collaborative editing (coming soon)"
   ]
 
@@ -79,6 +79,9 @@ export default function LandingPage() {
               transition={{ duration: 0.5, delay: 0.1 }}
             >
               Write, preview, and export your markdown documents with ease.
+              <span className="block text-green-500 font-semibold mt-2">
+                Now with Auto-Save! Never lose your work again. 🚀
+              </span>
             </motion.p>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -99,13 +102,21 @@ export default function LandingPage() {
             {features.map((feature, index) => (
               <motion.div
                 key={feature}
-                className="p-6 rounded-lg border bg-card"
+                className={`p-6 rounded-lg border bg-card ${
+                  feature.includes('Auto-save feature (Now Live!')
+                    ? 'border-green-500 dark:border-green-400'
+                    : ''
+                }`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
               >
                 <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-green-500" />
+                  <Check className={`h-5 w-5 ${
+                    feature.includes('Auto-save feature (Now Live!')
+                      ? 'text-green-500'
+                      : 'text-green-500'
+                  }`} />
                   <span>{feature}</span>
                 </div>
               </motion.div>

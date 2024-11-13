@@ -6,20 +6,20 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Document {
-  id        String   @id @default(cuid())
-  title     String
-  content   String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String   // This will store the Clerk user ID
-  isPublic  Boolean  @default(false)
-  isAutosave  Boolean  @default(false)
+  id         String   @id @default(cuid())
+  title      String?  // Made optional since it might not be needed for autosave
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  userId     String
+  isPublic   Boolean  @default(false)
+  isAutosave Boolean  @default(false)
 
   @@unique([userId, isAutosave])
 }
