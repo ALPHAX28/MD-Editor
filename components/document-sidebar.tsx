@@ -129,19 +129,21 @@ export function DocumentSidebar({
       
       {isSignedIn ? (
         <ScrollArea className="flex-1">
-          {documents.map((doc) => (
-            <DocumentItem
-              key={doc.id}
-              document={doc}
-              isActive={doc.id === activeDocumentId}
-              onSelect={(id) => {
-                onDocumentSelect(id)
-                onSheetOpenChange?.(false)
-              }}
-              onDelete={handleDeleteClick}
-              onRename={handleRenameClick}
-            />
-          ))}
+          <div className="space-y-2">
+            {documents.map((doc) => (
+              <DocumentItem
+                key={doc.id}
+                document={doc}
+                isActive={doc.id === activeDocumentId}
+                onSelect={(id) => {
+                  onDocumentSelect(id)
+                  onSheetOpenChange?.(false)
+                }}
+                onDelete={handleDeleteClick}
+                onRename={handleRenameClick}
+              />
+            ))}
+          </div>
         </ScrollArea>
       ) : (
         <div className="flex flex-col items-center justify-center h-full gap-4 text-center text-muted-foreground p-4">
