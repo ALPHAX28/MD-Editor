@@ -2,13 +2,11 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 
 export type SaveStatus = 'saved' | 'saving' | 'error' | 'idle'
-export type LoadStatus = 'loading' | 'loaded' | 'error' | 'idle'
 
 export function useAutosave(documentId?: string) {
   const [content, setContent] = useState('')
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [loadStatus, setLoadStatus] = useState<LoadStatus>('idle')
   const { isSignedIn, userId } = useAuth()
 
   // Load content when component mounts or documentId changes
@@ -17,7 +15,6 @@ export function useAutosave(documentId?: string) {
       if (!isSignedIn || !userId) return
 
       try {
-        setLoadStatus('loading')
         const endpoint = documentId 
           ? `/api/documents/${documentId}`
           : '/api/documents/autosave'
@@ -32,11 +29,9 @@ export function useAutosave(documentId?: string) {
         if (data?.content) {
           setContent(data.content)
           setLastSaved(new Date(data.updatedAt))
-          setLoadStatus('loaded')
         }
       } catch (error) {
         console.error('Failed to load document:', error)
-        setLoadStatus('error')
       }
     }
 
@@ -86,7 +81,6 @@ export function useAutosave(documentId?: string) {
     content, 
     setContent, 
     lastSaved, 
-    saveStatus,
-    loadStatus 
+    saveStatus 
   }
 } 

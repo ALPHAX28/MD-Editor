@@ -33,7 +33,6 @@ import { SaveStatusIndicator } from "@/components/save-status"
 import { DocumentSidebar } from "@/components/document-sidebar"
 import { Document } from "@/types"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { DocumentLoading } from "@/components/document-loading"
 
 interface CodeProps {
   node?: any;
@@ -74,8 +73,7 @@ export function MarkdownEditor({ documentId }: { documentId?: string }) {
     content, 
     setContent, 
     lastSaved, 
-    saveStatus,
-    loadStatus 
+    saveStatus
   } = useAutosave(documentId)
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
@@ -545,7 +543,6 @@ ${previewContent}
 
   return (
     <div className="relative h-full">
-      <DocumentLoading status={loadStatus} />
       <div className="flex h-screen overflow-hidden">
         <DocumentSidebar
           documents={documents}
@@ -879,28 +876,33 @@ ${previewContent}
                 </div>
 
                 <Tabs value={tab} onValueChange={setTab} className="min-h-[300px] sm:min-h-[600px] pt-2 relative">
-                  <div className="border-b px-4 pb-2 flex items-center">
-                    <TabsList className="border-0 bg-muted">
-                      <TabsTrigger 
-                        value="write" 
-                        className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground"
-                      >
-                        Write
-                      </TabsTrigger>
-                      <TabsTrigger 
-                        value="preview" 
-                        className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground"
-                      >
-                        Preview
-                      </TabsTrigger>
-                    </TabsList>
-                    <div className="flex-1 flex justify-center">
-                      <span className="text-sm text-muted-foreground font-medium">
-                        {getCurrentDocumentTitle()}
-                      </span>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <SaveStatusIndicator status={saveStatus} />
+                  <div className="border-b px-2 sm:px-4 pb-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+                      <TabsList className="border-0 bg-muted">
+                        <TabsTrigger 
+                          value="write" 
+                          className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground"
+                        >
+                          Write
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="preview" 
+                          className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground"
+                        >
+                          Preview
+                        </TabsTrigger>
+                      </TabsList>
+                      
+                      <div className="flex items-center justify-between sm:flex-1">
+                        <div className="flex-1 sm:text-center">
+                          <span className="text-sm text-muted-foreground font-medium truncate">
+                            {getCurrentDocumentTitle()}
+                          </span>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <SaveStatusIndicator status={saveStatus} />
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
