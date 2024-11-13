@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Menu, Plus, File } from "lucide-react"
+import { Menu, Plus, File, ChevronLeft, ChevronRight } from "lucide-react"
 import { useAuth } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import {
@@ -105,26 +105,28 @@ export function DocumentSidebar({
     <div className="h-full flex flex-col gap-2 p-4">
       <div className="flex items-center justify-between mb-2">
         <h2 className="font-semibold">Documents</h2>
-        {isSignedIn ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNewDocumentClick}
-            className="dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800"
-          >
-            New
-          </Button>
-        ) : (
-          <SignInButton mode="modal">
+        <div className="flex items-center gap-2">
+          {isSignedIn ? (
             <Button
               variant="outline"
               size="sm"
+              onClick={handleNewDocumentClick}
               className="dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800"
             >
-              Sign in
+              New
             </Button>
-          </SignInButton>
-        )}
+          ) : (
+            <SignInButton mode="modal">
+              <Button
+                variant="outline"
+                size="sm"
+                className="dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800"
+              >
+                Sign in
+              </Button>
+            </SignInButton>
+          )}
+        </div>
       </div>
       
       {isSignedIn ? (
@@ -160,9 +162,25 @@ export function DocumentSidebar({
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <div className="hidden sm:block border-r w-64 h-screen overflow-hidden">
-        <SidebarContent />
+      {/* Desktop Sidebar with collapse button */}
+      <div className={`hidden sm:flex transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-64'} relative`}>
+        <div className={`border-r w-full h-screen overflow-hidden ${isCollapsed ? 'invisible' : 'visible'}`}>
+          <SidebarContent />
+        </div>
+        <div className="absolute -right-3 top-1/2 transform -translate-y-1/2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-6 w-6 rounded-full border shadow-md bg-background"
+            onClick={onToggle}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-3 w-3" />
+            ) : (
+              <ChevronLeft className="h-3 w-3" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Mobile Sheet */}

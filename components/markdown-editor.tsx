@@ -33,6 +33,7 @@ import { SaveStatusIndicator } from "@/components/save-status"
 import { DocumentSidebar } from "@/components/document-sidebar"
 import { Document } from "@/types"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { DocumentLoading } from "@/components/document-loading"
 
 interface CodeProps {
   node?: any;
@@ -52,7 +53,7 @@ type ClerkAppearance = {
   };
 };
 
-export function MarkdownEditor() {
+export function MarkdownEditor({ documentId }: { documentId?: string }) {
   const [tab, setTab] = useState('write')
   const [darkMode, setDarkMode] = useState(false)
   const [isPdfExporting, setIsPdfExporting] = useState(false)
@@ -69,7 +70,13 @@ export function MarkdownEditor() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [activeDocumentId, setActiveDocumentId] = useState<string>()
   
-  const { content, setContent, lastSaved, saveStatus } = useAutosave(activeDocumentId)
+  const { 
+    content, 
+    setContent, 
+    lastSaved, 
+    saveStatus,
+    loadStatus 
+  } = useAutosave(documentId)
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
@@ -537,582 +544,585 @@ ${previewContent}
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <DocumentSidebar
-        documents={documents}
-        activeDocumentId={activeDocumentId}
-        onDocumentSelect={handleDocumentSelect}
-        onNewDocument={handleNewDocument}
-        onDeleteDocument={handleDeleteDocument}
-        onRenameDocument={handleRenameDocument}
-        isCollapsed={isSidebarCollapsed}
-        onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        isSheetOpen={isSheetOpen}
-        onSheetOpenChange={setIsSheetOpen}
-      />
-      <div className="flex-1 flex flex-col w-full overflow-hidden">
-        <div className="container mx-auto px-2 sm:px-6 py-2 sm:py-6 dark:bg-gray-900 dark:text-white min-h-screen overflow-y-auto">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="max-w-5xl mx-auto space-y-4"
-          >
-            <div className="flex flex-col gap-4 mb-6">
-              <div className="flex justify-between items-center">
-                {/* Mobile Hamburger and Welcome Message */}
-                <div className="flex items-center gap-4">
-                  <div className="sm:hidden">
-                    <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-                      <SheetTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                        >
-                          <Menu className="h-5 w-5" />
-                        </Button>
-                      </SheetTrigger>
-                    </Sheet>
-                  </div>
-                  <NextLink href="/" className="hover:opacity-80 transition-opacity">
-                    <h1 className="text-xl sm:text-2xl font-bold cursor-pointer truncate">
-                      {isLoaded && (
-                        isSignedIn ? (
-                          <>Welcome {user?.firstName || user?.username}</>
-                        ) : (
-                          <>Welcome Guest</>
-                        )
-                      )}
-                    </h1>
-                  </NextLink>
-                </div>
-
-                {/* User Controls */}
-                <div className="flex items-center gap-2 shrink-0">
-                  {isLoaded && (
-                    <>
-                      {isSignedIn ? (
-                        <UserButton 
-                          afterSignOutUrl={`${window?.location?.pathname}?reload=true`}
-                        />
-                      ) : (
-                        <div className="hidden sm:flex gap-2">
-                          <SignInButton mode="modal" afterSignInUrl={window?.location?.pathname}>
-                            <Button variant="outline" size="sm">
-                              Sign in
-                            </Button>
-                          </SignInButton>
-                          <SignUpButton mode="modal" afterSignUpUrl={window?.location?.pathname}>
-                            <Button variant="outline" size="sm">
-                              Sign up
-                            </Button>
-                          </SignUpButton>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setDarkMode(!darkMode)}
-                  >
-                    {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Mobile Sign In/Up Buttons */}
-              {isLoaded && !isSignedIn && (
-                <div className="flex sm:hidden gap-2 w-full">
-                  <SignInButton mode="modal" afterSignInUrl={window?.location?.pathname}>
-                    <Button variant="outline" size="sm" className="flex-1">
-                      Sign in
-                    </Button>
-                  </SignInButton>
-                  <SignUpButton mode="modal" afterSignUpUrl={window?.location?.pathname}>
-                    <Button variant="outline" size="sm" className="flex-1">
-                      Sign up
-                    </Button>
-                  </SignUpButton>
-                </div>
-              )}
-
-              {/* Export Buttons */}
-              <div className="flex gap-2 overflow-x-auto">
-                <Button
-                  variant="outline"
-                  onClick={() => handleExport('PDF')}
-                  disabled={isPdfExporting}
-                  size="sm"
-                  className="whitespace-nowrap"
-                >
-                  {isPdfExporting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      <span className="sm:inline">PDF</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileDown className="h-4 w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Export PDF</span>
-                      <span className="sm:hidden">PDF</span>
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleExport('Word')}
-                  disabled={isWordExporting}
-                  size="sm"
-                  className="whitespace-nowrap"
-                >
-                  {isWordExporting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      <span className="sm:inline">Word</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileDown className="h-4 w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Export Word</span>
-                      <span className="sm:hidden">Word</span>
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleExport('HTML')}
-                  disabled={isHtmlExporting}
-                  size="sm"
-                  className="whitespace-nowrap"
-                >
-                  {isHtmlExporting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      <span className="sm:inline">HTML</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileDown className="h-4 w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Export HTML</span>
-                      <span className="sm:hidden">HTML</span>
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-
+    <div className="relative h-full">
+      <DocumentLoading status={loadStatus} />
+      <div className="flex h-screen overflow-hidden">
+        <DocumentSidebar
+          documents={documents}
+          activeDocumentId={activeDocumentId}
+          onDocumentSelect={handleDocumentSelect}
+          onNewDocument={handleNewDocument}
+          onDeleteDocument={handleDeleteDocument}
+          onRenameDocument={handleRenameDocument}
+          isCollapsed={isSidebarCollapsed}
+          onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          isSheetOpen={isSheetOpen}
+          onSheetOpenChange={setIsSheetOpen}
+        />
+        <div className="flex-1 flex flex-col w-full overflow-hidden">
+          <div className="container mx-auto px-2 sm:px-6 py-2 sm:py-6 dark:bg-gray-900 dark:text-white min-h-screen overflow-y-auto">
             <motion.div 
-              layout
-              className="bg-card rounded-lg shadow-lg overflow-hidden"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-5xl mx-auto space-y-4"
             >
-              <div className="border-b pb-2 overflow-x-auto">
-                <div className="flex items-center gap-1 sm:gap-2 p-2 min-w-max">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('**', '**')}
-                    title="Bold"
-                  >
-                    <Bold className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('*', '*')}
-                    title="Italic"
-                  >
-                    <Italic className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('<u>', '</u>')}
-                    title="Underline"
-                  >
-                    <Underline className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('~~', '~~')}
-                    title="Strikethrough"
-                  >
-                    <Strikethrough className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('\n- ')}
-                    title="List"
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('# ')}
-                    title="Heading 1"
-                  >
-                    <Heading1 className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('## ')}
-                    title="Heading 2"
-                  >
-                    <Heading2 className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('### ')}
-                    title="Heading 3"
-                  >
-                    <Heading3 className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('> ')}
-                    title="Quote"
-                  >
-                    <Quote className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('`', '`')}
-                    title="Code"
-                  >
-                    <Code className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('- [ ] ')}
-                    title="Task List"
-                  >
-                    <CheckSquare className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('\n---\n')}
-                    title="Horizontal Rule"
-                  >
-                    <span className="h-4 w-4 flex items-center justify-center font-mono">--</span>
-                  </Button>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <ImageIcon className="h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80">
-                      <div className="space-y-2">
-                        <h4 className="font-medium">Insert Image</h4>
-                        <div className="space-y-2">
-                          <Label htmlFor="image-url">Image URL</Label>
-                          <Input id="image-url" placeholder="https://example.com/image.jpg" />
-                        </div>
-                        <Button 
-                          onClick={() => {
-                            const url = (document.getElementById('image-url') as HTMLInputElement)?.value
-                            if (url) insertAtCursor(`![Image](${url})`)
-                          }}
-                          className="w-full"
-                        >
-                          Insert
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <LinkIcon className="h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80">
-                      <div className="space-y-2">
-                        <h4 className="font-medium">Insert Link</h4>
-                        <div className="space-y-2">
-                          <Label htmlFor="link-text">Link Text</Label>
-                          <Input id="link-text" placeholder="Link text" />
-                          <Label htmlFor="link-url">URL</Label>
-                          <Input id="link-url" placeholder="https://example.com" />
-                        </div>
-                        <Button 
-                          onClick={() => {
-                            const text = (document.getElementById('link-text') as HTMLInputElement)?.value
-                            const url = (document.getElementById('link-url') as HTMLInputElement)?.value
-                            if (text && url) insertAtCursor(`[${text}](${url})`)
-                          }}
-                          className="w-full"
-                        >
-                          Insert
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => insertAtCursor('\n| Header 1 | Header 2 |\n| -------- | -------- |\n| Cell 1   | Cell 2   |\n')}
-                  >
-                    <Table className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <Tabs value={tab} onValueChange={setTab} className="min-h-[300px] sm:min-h-[600px] pt-2 relative">
-                <div className="border-b px-4 pb-2 flex items-center">
-                  <TabsList className="border-0 bg-muted">
-                    <TabsTrigger 
-                      value="write" 
-                      className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground"
-                    >
-                      Write
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="preview" 
-                      className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground"
-                    >
-                      Preview
-                    </TabsTrigger>
-                  </TabsList>
-                  <div className="flex-1 flex justify-center">
-                    <span className="text-sm text-muted-foreground font-medium">
-                      {getCurrentDocumentTitle()}
-                    </span>
+              <div className="flex flex-col gap-4 mb-6">
+                <div className="flex justify-between items-center">
+                  {/* Mobile Hamburger and Welcome Message */}
+                  <div className="flex items-center gap-4">
+                    <div className="sm:hidden">
+                      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                        <SheetTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
+                            <Menu className="h-5 w-5" />
+                          </Button>
+                        </SheetTrigger>
+                      </Sheet>
+                    </div>
+                    <NextLink href="/" className="hover:opacity-80 transition-opacity">
+                      <h1 className="text-xl sm:text-2xl font-bold cursor-pointer truncate">
+                        {isLoaded && (
+                          isSignedIn ? (
+                            <>Welcome {user?.firstName || user?.username}</>
+                          ) : (
+                            <>Welcome Guest</>
+                          )
+                        )}
+                      </h1>
+                    </NextLink>
                   </div>
-                  <div className="flex-shrink-0">
-                    <SaveStatusIndicator status={saveStatus} />
+
+                  {/* User Controls */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isLoaded && (
+                      <>
+                        {isSignedIn ? (
+                          <UserButton 
+                            afterSignOutUrl={`${window?.location?.pathname}?reload=true`}
+                          />
+                        ) : (
+                          <div className="hidden sm:flex gap-2">
+                            <SignInButton mode="modal" afterSignInUrl={window?.location?.pathname}>
+                              <Button variant="outline" size="sm">
+                                Sign in
+                              </Button>
+                            </SignInButton>
+                            <SignUpButton mode="modal" afterSignUpUrl={window?.location?.pathname}>
+                              <Button variant="outline" size="sm">
+                                Sign up
+                              </Button>
+                            </SignUpButton>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setDarkMode(!darkMode)}
+                    >
+                      {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    </Button>
                   </div>
                 </div>
                 
-                <AnimatePresence mode="wait">
-                  <TabsContent key="write" value="write" className="m-0 p-0">
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
+                {/* Mobile Sign In/Up Buttons */}
+                {isLoaded && !isSignedIn && (
+                  <div className="flex sm:hidden gap-2 w-full">
+                    <SignInButton mode="modal" afterSignInUrl={window?.location?.pathname}>
+                      <Button variant="outline" size="sm" className="flex-1">
+                        Sign in
+                      </Button>
+                    </SignInButton>
+                    <SignUpButton mode="modal" afterSignUpUrl={window?.location?.pathname}>
+                      <Button variant="outline" size="sm" className="flex-1">
+                        Sign up
+                      </Button>
+                    </SignUpButton>
+                  </div>
+                )}
+
+                {/* Export Buttons */}
+                <div className="flex gap-2 overflow-x-auto">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleExport('PDF')}
+                    disabled={isPdfExporting}
+                    size="sm"
+                    className="whitespace-nowrap"
+                  >
+                    {isPdfExporting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <span className="sm:inline">PDF</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileDown className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Export PDF</span>
+                        <span className="sm:hidden">PDF</span>
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleExport('Word')}
+                    disabled={isWordExporting}
+                    size="sm"
+                    className="whitespace-nowrap"
+                  >
+                    {isWordExporting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <span className="sm:inline">Word</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileDown className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Export Word</span>
+                        <span className="sm:hidden">Word</span>
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleExport('HTML')}
+                    disabled={isHtmlExporting}
+                    size="sm"
+                    className="whitespace-nowrap"
+                  >
+                    {isHtmlExporting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <span className="sm:inline">HTML</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileDown className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Export HTML</span>
+                        <span className="sm:hidden">HTML</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <motion.div 
+                layout
+                className="bg-card rounded-lg shadow-lg overflow-hidden"
+              >
+                <div className="border-b pb-2 overflow-x-auto">
+                  <div className="flex items-center gap-1 sm:gap-2 p-2 min-w-max">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('**', '**')}
+                      title="Bold"
                     >
-                      <textarea
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        className="w-full min-h-[600px] p-4 font-mono text-sm bg-background dark:bg-gray-800 dark:text-white resize-none focus:outline-none"
-                        placeholder="Start writing..."
-                      />
-                    </motion.div>
-                  </TabsContent>
-                  
-                  <TabsContent key="preview" value="preview" className="m-0 p-0">
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="w-full min-h-[600px] p-4"
-                      ref={targetRef}
+                      <Bold className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('*', '*')}
+                      title="Italic"
                     >
-                      <article className="prose prose-slate max-w-none dark:prose-invert print:max-w-none
-                        prose-h1:text-3xl prose-h1:font-bold prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-4 prose-h1:mb-4
-                        prose-h2:text-2xl prose-h2:font-bold prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-3 prose-h2:mb-4
-                        prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800
-                        prose-code:text-gray-800 dark:prose-code:text-gray-200
-                        prose-code:bg-gray-100 dark:prose-code:bg-gray-800
-                        prose-code:rounded prose-code:px-1 prose-code:py-0.5
-                        prose-ul:list-disc prose-ol:list-decimal
-                        prose-blockquote:border-l-4 prose-blockquote:border-gray-300
-                        prose-table:border-collapse prose-td:border prose-th:border
-                        prose-img:rounded-lg"
+                      <Italic className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('<u>', '</u>')}
+                      title="Underline"
+                    >
+                      <Underline className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('~~', '~~')}
+                      title="Strikethrough"
+                    >
+                      <Strikethrough className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('\n- ')}
+                      title="List"
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('# ')}
+                      title="Heading 1"
+                    >
+                      <Heading1 className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('## ')}
+                      title="Heading 2"
+                    >
+                      <Heading2 className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('### ')}
+                      title="Heading 3"
+                    >
+                      <Heading3 className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('> ')}
+                      title="Quote"
+                    >
+                      <Quote className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('`', '`')}
+                      title="Code"
+                    >
+                      <Code className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('- [ ] ')}
+                      title="Task List"
+                    >
+                      <CheckSquare className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('\n---\n')}
+                      title="Horizontal Rule"
+                    >
+                      <span className="h-4 w-4 flex items-center justify-center font-mono">--</span>
+                    </Button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <ImageIcon className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80">
+                        <div className="space-y-2">
+                          <h4 className="font-medium">Insert Image</h4>
+                          <div className="space-y-2">
+                            <Label htmlFor="image-url">Image URL</Label>
+                            <Input id="image-url" placeholder="https://example.com/image.jpg" />
+                          </div>
+                          <Button 
+                            onClick={() => {
+                              const url = (document.getElementById('image-url') as HTMLInputElement)?.value
+                              if (url) insertAtCursor(`![Image](${url})`)
+                            }}
+                            className="w-full"
+                          >
+                            Insert
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <LinkIcon className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80">
+                        <div className="space-y-2">
+                          <h4 className="font-medium">Insert Link</h4>
+                          <div className="space-y-2">
+                            <Label htmlFor="link-text">Link Text</Label>
+                            <Input id="link-text" placeholder="Link text" />
+                            <Label htmlFor="link-url">URL</Label>
+                            <Input id="link-url" placeholder="https://example.com" />
+                          </div>
+                          <Button 
+                            onClick={() => {
+                              const text = (document.getElementById('link-text') as HTMLInputElement)?.value
+                              const url = (document.getElementById('link-url') as HTMLInputElement)?.value
+                              if (text && url) insertAtCursor(`[${text}](${url})`)
+                            }}
+                            className="w-full"
+                          >
+                            Insert
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('\n| Header 1 | Header 2 |\n| -------- | -------- |\n| Cell 1   | Cell 2   |\n')}
+                    >
+                      <Table className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <Tabs value={tab} onValueChange={setTab} className="min-h-[300px] sm:min-h-[600px] pt-2 relative">
+                  <div className="border-b px-4 pb-2 flex items-center">
+                    <TabsList className="border-0 bg-muted">
+                      <TabsTrigger 
+                        value="write" 
+                        className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground"
                       >
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          rehypePlugins={[rehypeRaw]}
-                          components={{
-                            code: CodeBlock,
-                            h1: ({children, ...props}) => (
-                              <h1 className="text-3xl font-bold border-b border-gray-200 pb-4 mb-4" {...props}>
-                                {children}
-                              </h1>
-                            ),
-                            h2: ({children, ...props}) => (
-                              <h2 className="text-2xl font-bold border-b border-gray-200 pb-3 mb-4" {...props}>
-                                {children}
-                              </h2>
-                            ),
-                            h3: ({children, ...props}) => (
-                              <h3 className="text-xl font-bold mb-3" {...props}>{children}</h3>
-                            ),
-                            ul: ({children, ...props}) => (
-                              <ul className="list-disc pl-6 mb-4 space-y-2" {...props}>{children}</ul>
-                            ),
-                            ol: ({children, ...props}) => (
-                              <ol className="list-decimal pl-6 mb-4 space-y-2" {...props}>{children}</ol>
-                            ),
-                            li: ({children, ...props}) => (
-                              <li className="mb-1" {...props}>{children}</li>
-                            ),
-                            blockquote: ({children, ...props}) => (
-                              <blockquote className="border-l-4 border-gray-300 pl-4 py-2 my-4 bg-gray-50 dark:bg-gray-800" {...props}>
-                                {children}
-                              </blockquote>
-                            ),
-                            table: ({children, ...props}) => (
-                              <div className="overflow-x-auto my-4">
-                                <table className="min-w-full border-collapse" {...props}>{children}</table>
-                              </div>
-                            ),
-                            th: ({children, ...props}) => (
-                              <th className="border px-4 py-2 bg-gray-100 dark:bg-gray-700 font-semibold" {...props}>
-                                {children}
-                              </th>
-                            ),
-                            td: ({children, ...props}) => (
-                              <td className="border px-4 py-2" {...props}>{children}</td>
-                            ),
-                            a: ({children, href, ...props}) => (
-                              <a 
-                                href={href}
-                                className="text-blue-500 hover:text-blue-600 underline"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                {...props}
-                              >
-                                {children}
-                              </a>
-                            ),
-                            img: ({src, alt, ...props}) => (
-                              <img
-                                src={src}
-                                alt={alt}
-                                className="max-w-full h-auto rounded-lg my-4"
-                                {...props}
-                              />
-                            ),
-                            hr: (props) => (
-                              <hr className="my-8 border-t border-gray-300 dark:border-gray-600" {...props} />
-                            )
-                          }}
+                        Write
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="preview" 
+                        className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground"
+                      >
+                        Preview
+                      </TabsTrigger>
+                    </TabsList>
+                    <div className="flex-1 flex justify-center">
+                      <span className="text-sm text-muted-foreground font-medium">
+                        {getCurrentDocumentTitle()}
+                      </span>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <SaveStatusIndicator status={saveStatus} />
+                    </div>
+                  </div>
+                  
+                  <AnimatePresence mode="wait">
+                    <TabsContent key="write" value="write" className="m-0 p-0">
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <textarea
+                          value={content}
+                          onChange={(e) => setContent(e.target.value)}
+                          className="w-full min-h-[600px] p-4 font-mono text-sm bg-background dark:bg-gray-800 dark:text-white resize-none focus:outline-none"
+                          placeholder="Start writing..."
+                        />
+                      </motion.div>
+                    </TabsContent>
+                    
+                    <TabsContent key="preview" value="preview" className="m-0 p-0">
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full min-h-[600px] p-4"
+                        ref={targetRef}
+                      >
+                        <article className="prose prose-slate max-w-none dark:prose-invert print:max-w-none
+                          prose-h1:text-3xl prose-h1:font-bold prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-4 prose-h1:mb-4
+                          prose-h2:text-2xl prose-h2:font-bold prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-3 prose-h2:mb-4
+                          prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800
+                          prose-code:text-gray-800 dark:prose-code:text-gray-200
+                          prose-code:bg-gray-100 dark:prose-code:bg-gray-800
+                          prose-code:rounded prose-code:px-1 prose-code:py-0.5
+                          prose-ul:list-disc prose-ol:list-decimal
+                          prose-blockquote:border-l-4 prose-blockquote:border-gray-300
+                          prose-table:border-collapse prose-td:border prose-th:border
+                          prose-img:rounded-lg"
                         >
-                          {content}
-                        </ReactMarkdown>
-                      </article>
-                    </motion.div>
-                  </TabsContent>
-                </AnimatePresence>
-              </Tabs>
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeRaw]}
+                            components={{
+                              code: CodeBlock,
+                              h1: ({children, ...props}) => (
+                                <h1 className="text-3xl font-bold border-b border-gray-200 pb-4 mb-4" {...props}>
+                                  {children}
+                                </h1>
+                              ),
+                              h2: ({children, ...props}) => (
+                                <h2 className="text-2xl font-bold border-b border-gray-200 pb-3 mb-4" {...props}>
+                                  {children}
+                                </h2>
+                              ),
+                              h3: ({children, ...props}) => (
+                                <h3 className="text-xl font-bold mb-3" {...props}>{children}</h3>
+                              ),
+                              ul: ({children, ...props}) => (
+                                <ul className="list-disc pl-6 mb-4 space-y-2" {...props}>{children}</ul>
+                              ),
+                              ol: ({children, ...props}) => (
+                                <ol className="list-decimal pl-6 mb-4 space-y-2" {...props}>{children}</ol>
+                              ),
+                              li: ({children, ...props}) => (
+                                <li className="mb-1" {...props}>{children}</li>
+                              ),
+                              blockquote: ({children, ...props}) => (
+                                <blockquote className="border-l-4 border-gray-300 pl-4 py-2 my-4 bg-gray-50 dark:bg-gray-800" {...props}>
+                                  {children}
+                                </blockquote>
+                              ),
+                              table: ({children, ...props}) => (
+                                <div className="overflow-x-auto my-4">
+                                  <table className="min-w-full border-collapse" {...props}>{children}</table>
+                                </div>
+                              ),
+                              th: ({children, ...props}) => (
+                                <th className="border px-4 py-2 bg-gray-100 dark:bg-gray-700 font-semibold" {...props}>
+                                  {children}
+                                </th>
+                              ),
+                              td: ({children, ...props}) => (
+                                <td className="border px-4 py-2" {...props}>{children}</td>
+                              ),
+                              a: ({children, href, ...props}) => (
+                                <a 
+                                  href={href}
+                                  className="text-blue-500 hover:text-blue-600 underline"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  {...props}
+                                >
+                                  {children}
+                                </a>
+                              ),
+                              img: ({src, alt, ...props}) => (
+                                <img
+                                  src={src}
+                                  alt={alt}
+                                  className="max-w-full h-auto rounded-lg my-4"
+                                  {...props}
+                                />
+                              ),
+                              hr: (props) => (
+                                <hr className="my-8 border-t border-gray-300 dark:border-gray-600" {...props} />
+                              )
+                            }}
+                          >
+                            {content}
+                          </ReactMarkdown>
+                        </article>
+                      </motion.div>
+                    </TabsContent>
+                  </AnimatePresence>
+                </Tabs>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        </div>
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Switch to Preview</DialogTitle>
-              <DialogDescription>
-                {dialogMessage}
-              </DialogDescription>
-            </DialogHeader>
-          </DialogContent>
-        </Dialog>
-        <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
-          <DialogContent className="sm:max-w-[480px] p-0 bg-background">
-            <DialogHeader className="p-6 pb-2">
-              <DialogTitle className="text-center">Authentication Required</DialogTitle>
-              <DialogDescription className="text-center">
-                Please sign in to export your document
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex items-center justify-center w-full px-6 pb-6">
-              <SignIn 
-                afterSignInUrl={window?.location?.pathname}
-                appearance={{
-                  baseTheme: theme === "dark" ? dark : undefined,
-                  elements: {
-                    rootBox: {
-                      width: "100%",
-                      margin: "0 auto",
-                      maxWidth: "400px"
-                    },
-                    card: {
-                      boxShadow: "none",
-                      width: "100%",
-                      background: "transparent",
-                      margin: "0 auto"
-                    },
-                    headerTitle: { display: "none" },
-                    headerSubtitle: { display: "none" },
-                    socialButtonsBlockButton: {
-                      border: "1px solid hsl(var(--border))",
-                      background: "transparent",
-                      color: "hsl(var(--foreground))",
-                      width: "100%"
-                    },
-                    formFieldInput: {
-                      background: "transparent",
-                      border: "1px solid hsl(var(--border))",
-                      color: "hsl(var(--foreground))",
-                      width: "100%"
-                    },
-                    formFieldLabel: {
-                      color: "hsl(var(--foreground))",
-                      fontSize: "14px"
-                    },
-                    formFieldLabelRow: {
-                      color: "hsl(var(--foreground))"
-                    },
-                    formButtonPrimary: {
-                      backgroundColor: "hsl(var(--primary))",
-                      color: "hsl(var(--background))",
-                      width: "100%"
-                    },
-                    footerActionLink: {
-                      color: "hsl(var(--primary))"
-                    },
-                    footer: {
-                      color: "hsl(var(--muted-foreground))",
-                      textAlign: "center"
-                    },
-                    footerText: {
-                      color: "hsl(var(--muted-foreground))"
-                    },
-                    dividerLine: {
-                      background: "hsl(var(--border))"
-                    },
-                    dividerText: {
-                      color: "hsl(var(--muted-foreground))"
-                    },
-                    form: {
-                      width: "100%"
-                    },
-                    formField: {
-                      width: "100%"
-                    },
-                    formFieldAction: {
-                      color: "hsl(var(--primary))"
-                    },
-                    identityPreviewText: {
-                      color: "hsl(var(--foreground))"
-                    },
-                    formFieldHintText: {
-                      color: "hsl(var(--muted-foreground))"
-                    },
-                    footerActionText: {
-                      color: "hsl(var(--muted-foreground))"
+          </div>
+          <Dialog open={showDialog} onOpenChange={setShowDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Switch to Preview</DialogTitle>
+                <DialogDescription>
+                  {dialogMessage}
+                </DialogDescription>
+              </DialogHeader>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+            <DialogContent className="sm:max-w-[480px] p-0 bg-background">
+              <DialogHeader className="p-6 pb-2">
+                <DialogTitle className="text-center">Authentication Required</DialogTitle>
+                <DialogDescription className="text-center">
+                  Please sign in to export your document
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center justify-center w-full px-6 pb-6">
+                <SignIn 
+                  afterSignInUrl={window?.location?.pathname}
+                  appearance={{
+                    baseTheme: theme === "dark" ? dark : undefined,
+                    elements: {
+                      rootBox: {
+                        width: "100%",
+                        margin: "0 auto",
+                        maxWidth: "400px"
+                      },
+                      card: {
+                        boxShadow: "none",
+                        width: "100%",
+                        background: "transparent",
+                        margin: "0 auto"
+                      },
+                      headerTitle: { display: "none" },
+                      headerSubtitle: { display: "none" },
+                      socialButtonsBlockButton: {
+                        border: "1px solid hsl(var(--border))",
+                        background: "transparent",
+                        color: "hsl(var(--foreground))",
+                        width: "100%"
+                      },
+                      formFieldInput: {
+                        background: "transparent",
+                        border: "1px solid hsl(var(--border))",
+                        color: "hsl(var(--foreground))",
+                        width: "100%"
+                      },
+                      formFieldLabel: {
+                        color: "hsl(var(--foreground))",
+                        fontSize: "14px"
+                      },
+                      formFieldLabelRow: {
+                        color: "hsl(var(--foreground))"
+                      },
+                      formButtonPrimary: {
+                        backgroundColor: "hsl(var(--primary))",
+                        color: "hsl(var(--background))",
+                        width: "100%"
+                      },
+                      footerActionLink: {
+                        color: "hsl(var(--primary))"
+                      },
+                      footer: {
+                        color: "hsl(var(--muted-foreground))",
+                        textAlign: "center"
+                      },
+                      footerText: {
+                        color: "hsl(var(--muted-foreground))"
+                      },
+                      dividerLine: {
+                        background: "hsl(var(--border))"
+                      },
+                      dividerText: {
+                        color: "hsl(var(--muted-foreground))"
+                      },
+                      form: {
+                        width: "100%"
+                      },
+                      formField: {
+                        width: "100%"
+                      },
+                      formFieldAction: {
+                        color: "hsl(var(--primary))"
+                      },
+                      identityPreviewText: {
+                        color: "hsl(var(--foreground))"
+                      },
+                      formFieldHintText: {
+                        color: "hsl(var(--muted-foreground))"
+                      },
+                      footerActionText: {
+                        color: "hsl(var(--muted-foreground))"
+                      }
                     }
-                  }
-                }}
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
+                  }}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
     </div>
   )
