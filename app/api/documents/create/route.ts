@@ -31,6 +31,10 @@ export async function POST(req: Request) {
     
     console.log("Document created:", createdDoc)
     
+    if (!createdDoc) {
+      return new NextResponse('Failed to create document', { status: 500 });
+    }
+
     return new NextResponse(JSON.stringify({
       ...createdDoc,
       id: createdDoc._id.toString()
