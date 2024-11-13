@@ -1,97 +1,84 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 
-const LOCAL_STORAGE_KEY = 'md-editor-autosave'
-
 export type SaveStatus = 'saved' | 'saving' | 'error' | 'idle'
 
-export function useAutosave(initialContent: string = '') {
-  const [content, setContent] = useState(initialContent)
+export function useAutosave(documentId?: string) {
+  const [content, setContent] = useState('')
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const { isSignedIn, userId } = useAuth()
 
-  // Load content when component mounts
+  // Load content when component mounts or documentId changes
   useEffect(() => {
     const loadContent = async () => {
-      if (isSignedIn && userId) {
-        try {
-          setSaveStatus('saving')
-          const response = await fetch(`/api/documents/autosave`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data?.content) {
-              setContent(data.content)
-              setLastSaved(new Date(data.updatedAt))
-              setSaveStatus('saved')
-              localStorage.removeItem(LOCAL_STORAGE_KEY)
-              return
-            }
-          }
-          setSaveStatus('error')
-        } catch (error) {
-          console.error('Failed to load from API:', error)
-          setSaveStatus('error')
-        }
-      }
+      if (!isSignedIn || !userId) return
 
-      // Fall back to local storage
-      const savedContent = localStorage.getItem(LOCAL_STORAGE_KEY)
-      if (savedContent) {
-        setContent(savedContent)
-        setSaveStatus('saved')
+      try {
+        setSaveStatus('saving')
+        const endpoint = documentId 
+          ? `/api/documents/${documentId}`
+          : '/api/documents/autosave'
+        
+        const response = await fetch(endpoint)
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to load document')
+        }
+        
+        const data = await response.json()
+        if (data?.content) {
+          setContent(data.content)
+          setLastSaved(new Date(data.updatedAt))
+          setSaveStatus('saved')
+        }
+      } catch (error) {
+        console.error('Failed to load document:', error)
+        setSaveStatus('error')
       }
     }
 
     loadContent()
-  }, [isSignedIn, userId])
+  }, [isSignedIn, userId, documentId])
 
   // Autosave effect
   useEffect(() => {
-    if (!content) return
+    if (!content || !isSignedIn || !userId) return
 
     const saveContent = async () => {
       setSaveStatus('saving')
       
-      // Always save to local storage
-      localStorage.setItem(LOCAL_STORAGE_KEY, content)
+      try {
+        const endpoint = documentId 
+          ? `/api/documents/${documentId}`
+          : '/api/documents/autosave'
+        
+        const method = documentId ? 'PATCH' : 'POST'
+        
+        const response = await fetch(endpoint, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        })
 
-      // If signed in, also save to API
-      if (isSignedIn && userId) {
-        try {
-          const response = await fetch('/api/documents/autosave', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ content }),
-          })
-
-          if (response.ok) {
-            setLastSaved(new Date())
-            setSaveStatus('saved')
-          } else {
-            setSaveStatus('error')
-          }
-        } catch (error) {
-          console.error('Failed to save to API:', error)
-          setSaveStatus('error')
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to save document')
         }
-      } else {
-        // For non-signed-in users, mark as saved after local storage
+
+        const data = await response.json()
+        setLastSaved(new Date(data.updatedAt))
         setSaveStatus('saved')
+      } catch (error) {
+        console.error('Failed to save document:', error)
+        setSaveStatus('error')
+        // Optionally show a toast or notification here
       }
     }
 
-    // Debounce the save operation
     const timeoutId = setTimeout(saveContent, 1000)
     return () => clearTimeout(timeoutId)
-  }, [content, isSignedIn, userId])
+  }, [content, isSignedIn, userId, documentId])
 
-  return {
-    content,
-    setContent,
-    lastSaved,
-    saveStatus
-  }
+  return { content, setContent, lastSaved, saveStatus }
 } 

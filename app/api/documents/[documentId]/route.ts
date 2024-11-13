@@ -1,120 +1,7 @@
-import clientPromise from '@/lib/mongodb'
 import { auth } from '@clerk/nextjs'
 import { NextResponse } from 'next/server'
-import { ObjectId } from 'mongodb'
+import { prisma } from '@/lib/prisma'
 
-// DELETE route for deleting a document
-export async function DELETE(
-  req: Request,
-  { params }: { params: { documentId: string } }
-) {
-  try {
-    const { userId } = auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
-    const client = await clientPromise
-    const db = client.db("markdown-editor")
-    const collection = db.collection("documents")
-
-    // Ensure valid ObjectId
-    let documentObjectId;
-    try {
-      documentObjectId = new ObjectId(params.documentId);
-    } catch (error) {
-      return new NextResponse('Invalid document ID', { status: 400 })
-    }
-
-    const result = await collection.deleteOne({
-      _id: documentObjectId,
-      userId
-    })
-
-    if (result.deletedCount === 0) {
-      return new NextResponse('Document not found', { status: 404 })
-    }
-
-    return new NextResponse(null, { status: 204 })
-  } catch (error) {
-    console.error('Error deleting document:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
-  }
-}
-
-// PATCH route for renaming a document
-export async function PATCH(
-  req: Request,
-  { params }: { params: { documentId: string } }
-) {
-  try {
-    const { userId } = auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
-    // Ensure valid ObjectId
-    let documentObjectId;
-    try {
-      documentObjectId = new ObjectId(params.documentId);
-    } catch (error) {
-      return new NextResponse('Invalid document ID', { status: 400 })
-    }
-
-    const { title, content } = await req.json()
-    const updateData: any = {}
-    
-    if (title !== undefined) updateData.title = title
-    if (content !== undefined) updateData.content = content
-    updateData.updatedAt = new Date()
-
-    const client = await clientPromise
-    const db = client.db("markdown-editor")
-    const collection = db.collection("documents")
-
-    const result = await collection.findOneAndUpdate(
-      {
-        _id: documentObjectId,
-        userId
-      },
-      {
-        $set: updateData
-      },
-      { 
-        returnDocument: 'after'
-      }
-    )
-
-    if (!result) {
-      return new NextResponse('Document not found', { status: 404 })
-    }
-
-    // Format the response
-    const updatedDoc = {
-      ...result,
-      id: result._id.toString(),
-      _id: undefined
-    }
-
-    return NextResponse.json(updatedDoc)
-  } catch (error) {
-    console.error('Error updating document:', error)
-    return new NextResponse(
-      JSON.stringify({ 
-        error: 'Failed to update document',
-        details: error instanceof Error ? error.message : String(error)
-      }), 
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-  }
-}
-
-// GET route for fetching a single document
 export async function GET(
   req: Request,
   { params }: { params: { documentId: string } }
@@ -122,36 +9,113 @@ export async function GET(
   try {
     const { userId } = auth()
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Ensure valid ObjectId
-    let documentObjectId;
-    try {
-      documentObjectId = new ObjectId(params.documentId);
-    } catch (error) {
-      return new NextResponse('Invalid document ID', { status: 400 })
-    }
-
-    const client = await clientPromise
-    const db = client.db("markdown-editor")
-    const collection = db.collection("documents")
-
-    const document = await collection.findOne({
-      _id: documentObjectId,
-      userId
+    const document = await prisma.document.findUnique({
+      where: {
+        id: params.documentId,
+      }
     })
 
     if (!document) {
-      return new NextResponse('Document not found', { status: 404 })
+      return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    return NextResponse.json({
-      ...document,
-      id: document._id.toString()
-    })
+    if (document.userId !== userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    return NextResponse.json(document)
   } catch (error) {
-    console.error('Error fetching document:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error("[DOCUMENT_GET]", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+  }
+}
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: { documentId: string } }
+) {
+  try {
+    const { userId } = auth()
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // First check if document exists and belongs to user
+    const existingDoc = await prisma.document.findUnique({
+      where: {
+        id: params.documentId,
+      }
+    })
+
+    if (!existingDoc) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 })
+    }
+
+    if (existingDoc.userId !== userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { title, content } = await req.json()
+    console.log("Updating document:", { documentId: params.documentId, title, content }) // Debug log
+
+    const document = await prisma.document.update({
+      where: {
+        id: params.documentId,
+      },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(content !== undefined && { content }),
+        updatedAt: new Date(),
+      }
+    })
+
+    console.log("Updated document:", document) // Debug log
+    return NextResponse.json(document)
+  } catch (error) {
+    console.error("[DOCUMENT_PATCH] Full error:", error)
+    return NextResponse.json({ 
+      error: "Internal Server Error",
+      details: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { documentId: string } }
+) {
+  try {
+    const { userId } = auth()
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const document = await prisma.document.findUnique({
+      where: {
+        id: params.documentId,
+      }
+    })
+
+    if (!document) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 })
+    }
+
+    if (document.userId !== userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    await prisma.document.delete({
+      where: {
+        id: params.documentId,
+      }
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("[DOCUMENT_DELETE]", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 } 

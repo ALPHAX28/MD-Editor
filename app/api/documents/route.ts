@@ -1,23 +1,29 @@
-import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs'
-import clientPromise from '@/lib/mongodb'
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
     const { userId } = auth()
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const client = await clientPromise
-    const db = client.db("markdownEditor")
-    const collection = db.collection("documents")
+    const documents = await prisma.document.findMany({
+      where: {
+        userId,
+        isAutosave: false,
+        isArchived: false,
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    })
 
-    const documents = await collection.find({ userId }).toArray()
     return NextResponse.json(documents)
   } catch (error) {
-    console.error('Error fetching documents:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error("[DOCUMENTS_GET]", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
 
@@ -25,30 +31,23 @@ export async function POST(req: Request) {
   try {
     const { userId } = auth()
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { title, content } = body
+    const { title, content } = await req.json()
 
-    const client = await clientPromise
-    const db = client.db("markdownEditor")
-    const collection = db.collection("documents")
+    const document = await prisma.document.create({
+      data: {
+        title,
+        content: content || '',
+        userId,
+        isAutosave: false,
+      }
+    })
 
-    const document = {
-      title,
-      content: content || '',
-      userId,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-
-    const result = await collection.insertOne(document)
-    const newDocument = await collection.findOne({ _id: result.insertedId })
-
-    return NextResponse.json(newDocument)
+    return NextResponse.json(document)
   } catch (error) {
-    console.error('Error creating document:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error("[DOCUMENTS_POST]", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 } 
