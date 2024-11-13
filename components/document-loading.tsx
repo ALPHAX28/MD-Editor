@@ -1,8 +1,7 @@
-import { LoadStatus } from "@/hooks/use-autosave"
 import { Loader2 } from "lucide-react"
 
 interface DocumentLoadingProps {
-  status: LoadStatus
+  status: 'loading' | 'loaded' | 'error' | 'idle'
 }
 
 export function DocumentLoading({ status }: DocumentLoadingProps) {
