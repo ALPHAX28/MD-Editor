@@ -73,7 +73,9 @@ export function MarkdownEditor({ documentId }: { documentId?: string }) {
     content, 
     setContent, 
     lastSaved, 
-    saveStatus
+    saveStatus, 
+    setLastSaved, 
+    setSaveStatus
   } = useAutosave(documentId)
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
@@ -541,6 +543,36 @@ ${previewContent}
     return currentDoc?.title || "Untitled";
   };
 
+  const handleManualSave = async () => {
+    if (!content || !isSignedIn || !userId) return
+    
+    setSaveStatus('saving')
+    try {
+      const endpoint = documentId 
+        ? `/api/documents/${documentId}`
+        : '/api/documents/autosave'
+      
+      const method = documentId ? 'PATCH' : 'POST'
+      
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save document')
+      }
+
+      const data = await response.json()
+      setLastSaved(new Date(data.updatedAt))
+      setSaveStatus('saved')
+    } catch (error) {
+      console.error('Failed to save document:', error)
+      setSaveStatus('error')
+    }
+  }
+
   return (
     <div className="relative h-full">
       <div className="flex h-screen overflow-hidden">
@@ -900,7 +932,10 @@ ${previewContent}
                           </span>
                         </div>
                         <div className="flex-shrink-0">
-                          <SaveStatusIndicator status={saveStatus} />
+                          <SaveStatusIndicator 
+                            status={saveStatus} 
+                            onManualSave={handleManualSave}
+                          />
                         </div>
                       </div>
                     </div>

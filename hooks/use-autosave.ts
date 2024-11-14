@@ -81,6 +81,8 @@ export function useAutosave(documentId?: string) {
     content, 
     setContent, 
     lastSaved, 
-    saveStatus 
+    setLastSaved, 
+    saveStatus,
+    setSaveStatus 
   }
 } 
