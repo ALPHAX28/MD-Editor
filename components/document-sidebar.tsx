@@ -46,6 +46,11 @@ interface DocumentSidebarProps {
   onSheetOpenChange?: (open: boolean) => void
 }
 
+const isMobile = () => {
+  if (typeof window === 'undefined') return false
+  return window.innerWidth <= 768
+}
+
 export function DocumentSidebar({
   documents,
   activeDocumentId,
@@ -178,7 +183,7 @@ export function DocumentSidebar({
         <div className="flex items-center gap-2">
           {isSignedIn ? (
             <>
-              <TooltipProvider>
+              <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -190,8 +195,12 @@ export function DocumentSidebar({
                       <Search className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Search (Alt + S)</p>
+                  <TooltipContent 
+                    side="bottom" 
+                    className="hidden sm:block"
+                    forceMount={false}
+                  >
+                    Search (Alt + S)
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -208,7 +217,7 @@ export function DocumentSidebar({
                       New
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>
+                  <TooltipContent side="bottom">
                     <p>New Document (Alt + N)</p>
                   </TooltipContent>
                 </Tooltip>
