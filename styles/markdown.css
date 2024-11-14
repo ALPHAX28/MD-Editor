@@ -73,4 +73,12 @@
 .dark .markdown-body blockquote {
   color: #8b949e;
   border-left-color: #3b434b;
+}
+
+.dark .katex {
+  color: hsl(var(--foreground));
+}
+
+.dark .katex-display {
+  color: hsl(var(--foreground));
 } 

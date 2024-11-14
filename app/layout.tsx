@@ -5,6 +5,7 @@ import "@/styles/markdown.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ClerkProvider } from '@clerk/nextjs'
 import { Toaster } from "@/components/ui/toaster"
+import '@/styles/katex.css'
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",

@@ -33,6 +33,9 @@ import { SaveStatusIndicator } from "@/components/save-status"
 import { DocumentSidebar } from "@/components/document-sidebar"
 import { Document } from "@/types"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import katex from 'katex'
 
 interface CodeProps {
   node?: any;
@@ -903,6 +906,22 @@ ${previewContent}
                     >
                       <Table className="h-4 w-4" />
                     </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('$', '$')}
+                      title="Inline Math"
+                    >
+                      <span className="font-mono">∑</span>
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => insertAtCursor('\n$$\n', '\n$$\n')}
+                      title="Math Block"
+                    >
+                      <span className="font-mono">∫</span>
+                    </Button>
                   </div>
                 </div>
 
@@ -979,8 +998,8 @@ ${previewContent}
                           prose-img:rounded-lg"
                         >
                           <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            rehypePlugins={[rehypeRaw]}
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeRaw, rehypeKatex]}
                             components={{
                               code: CodeBlock,
                               h1: ({children, ...props}) => (
@@ -1044,7 +1063,47 @@ ${previewContent}
                               ),
                               hr: (props) => (
                                 <hr className="my-8 border-t border-gray-300 dark:border-gray-600" {...props} />
-                              )
+                              ),
+                              math: ({value}: {value: any}) => {
+                                if (!value || typeof value !== 'string') return null;
+                                try {
+                                  return (
+                                    <div className="my-2">
+                                      <span 
+                                        dangerouslySetInnerHTML={{ 
+                                          __html: katex.renderToString(value.toString(), {
+                                            throwOnError: false,
+                                            displayMode: true,
+                                            strict: false
+                                          })
+                                        }} 
+                                      />
+                                    </div>
+                                  );
+                                } catch (error) {
+                                  console.error('KaTeX error:', error);
+                                  return <div className="text-red-500">Error rendering math equation</div>;
+                                }
+                              },
+                              inlineMath: ({value}: {value: any}) => {
+                                if (!value || typeof value !== 'string') return null;
+                                try {
+                                  return (
+                                    <span 
+                                      dangerouslySetInnerHTML={{ 
+                                        __html: katex.renderToString(value.toString(), {
+                                          throwOnError: false,
+                                          displayMode: false,
+                                          strict: false
+                                        })
+                                      }} 
+                                    />
+                                  );
+                                } catch (error) {
+                                  console.error('KaTeX error:', error);
+                                  return <span className="text-red-500">Error rendering math equation</span>;
+                                }
+                              },
                             }}
                           >
                             {content}
