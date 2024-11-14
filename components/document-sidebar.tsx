@@ -35,7 +35,7 @@ import {
 interface DocumentSidebarProps {
   documents: Document[]
   activeDocumentId?: string
-  onDocumentSelect: (documentId: string) => void
+  onDocumentSelect: (documentId: string) => Promise<void>
   onNewDocument: (title: string) => Promise<void>
   onDeleteDocument: (documentId: string) => void
   onRenameDocument: (documentId: string, newTitle: string) => void
