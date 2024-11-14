@@ -198,7 +198,6 @@ export function DocumentSidebar({
                   <TooltipContent 
                     side="bottom" 
                     className="hidden sm:block"
-                    forceMount={false}
                   >
                     Search (Alt + S)
                   </TooltipContent>
