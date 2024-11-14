@@ -6,6 +6,7 @@ import { ArrowRight, Check, FileDown, Github, Moon, Sun, CheckCircle } from "luc
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { EditorButton } from "@/components/editor-button"
 
 export default function LandingPage() {
   const { isLoaded, isSignedIn } = useAuth()
@@ -88,12 +89,7 @@ export default function LandingPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              <Link href="/editor">
-                <Button size="lg" className="group">
-                  Go to Editor
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
+              <EditorButton />
             </motion.div>
           </div>
 

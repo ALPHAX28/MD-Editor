@@ -1,69 +1,94 @@
 "use client"
 
+import { useState, useEffect } from "react"
+import { Search, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Document } from "@/types"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface DocumentSearchProps {
-  value: string
-  onChange: (value: string) => void
+  documents: Document[]
+  onSelect: (documentId: string) => Promise<void>
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-export function DocumentSearch({ value, onChange }: DocumentSearchProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [isFocused, setIsFocused] = useState(false)
+export function DocumentSearch({
+  documents,
+  onSelect,
+  isOpen,
+  onOpenChange,
+}: DocumentSearchProps) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filteredDocs, setFilteredDocs] = useState<Document[]>([])
+  const [loadingDocId, setLoadingDocId] = useState<string | null>(null)
 
-  const handleInputClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    inputRef.current?.focus()
-  }
+  useEffect(() => {
+    const filtered = documents.filter(doc =>
+      doc.title.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    setFilteredDocs(filtered)
+  }, [searchQuery, documents])
 
-  const handleInputFocus = (e: React.FocusEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsFocused(true)
-  }
-
-  const handleInputBlur = (e: React.FocusEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsFocused(false)
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    onChange(e.target.value)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    e.stopPropagation()
+  const handleSelect = async (documentId: string) => {
+    setLoadingDocId(documentId)
+    await onSelect(documentId)
+    setLoadingDocId(null)
+    onOpenChange(false)
+    setSearchQuery("")
   }
 
   return (
-    <div 
-      className="relative" 
-      onClick={handleInputClick}
-      onMouseDown={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-    >
-      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-      <input
-        ref={inputRef}
-        type="text"
-        placeholder="Search documents..."
-        value={value}
-        onChange={handleInputChange}
-        onFocus={handleInputFocus}
-        onBlur={handleInputBlur}
-        onKeyDown={handleKeyDown}
-        className={`w-full h-10 pl-8 pr-4 rounded-md border border-input bg-background text-sm ring-offset-background 
-          file:border-0 file:bg-transparent file:text-sm file:font-medium 
-          placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 
-          focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50
-          ${isFocused ? 'ring-2 ring-ring ring-offset-2' : ''}`}
-      />
-    </div>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Search Documents</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search documents..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <ScrollArea className="h-[300px]">
+            {filteredDocs.length > 0 ? (
+              <div className="space-y-2">
+                {filteredDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    onClick={() => handleSelect(doc.id)}
+                    className="p-2 hover:bg-accent rounded-md cursor-pointer flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Search className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{doc.title}</span>
+                    </div>
+                    {loadingDocId === doc.id && (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground py-6">
+                No documents found
+              </div>
+            )}
+          </ScrollArea>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 } 

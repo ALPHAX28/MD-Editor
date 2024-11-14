@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Menu, Plus, File, ChevronLeft, ChevronRight } from "lucide-react"
+import { Menu, Plus, File, ChevronLeft, ChevronRight, Search, Loader2 } from "lucide-react"
 import { useAuth } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import {
@@ -24,6 +24,13 @@ import { DocumentItem } from "@/components/document-item"
 import { Document } from "@/types"
 import { Input } from "@/components/ui/input"
 import { SignInButton } from "@clerk/nextjs"
+import { DocumentSearch } from "@/components/document-search"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface DocumentSidebarProps {
   documents: Document[]
@@ -59,6 +66,48 @@ export function DocumentSidebar({
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const router = useRouter()
+  const [showSearchDialog, setShowSearchDialog] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isLoadingDocs, setIsLoadingDocs] = useState(true)
+  const isInitialLoad = useRef(true)
+  const [loadingDocId, setLoadingDocId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey) {
+        if (e.key === 'n') {
+          e.preventDefault()
+          if (isSignedIn) {
+            handleNewDocumentClick()
+          }
+        } else if (e.key === 's') {
+          e.preventDefault()
+          if (isSignedIn) {
+            setShowSearchDialog(true)
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isSignedIn])
+
+  useEffect(() => {
+    if (isInitialLoad.current) {
+      setIsLoadingDocs(true)
+      
+      const timer = setTimeout(() => {
+        if (Array.isArray(documents)) {
+          setIsLoadingDocs(false)
+          isInitialLoad.current = false
+        }
+      }, 1000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [documents])
 
   const handleDeleteClick = (doc: Document) => {
     setSelectedDocument(doc)
@@ -71,12 +120,19 @@ export function DocumentSidebar({
     setShowRenameDialog(true)
   }
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (selectedDocument) {
-      onDeleteDocument(selectedDocument.id)
+      try {
+        setIsDeleting(true)
+        await onDeleteDocument(selectedDocument.id)
+        setShowDeleteDialog(false)
+        setSelectedDocument(null)
+      } catch (error) {
+        console.error('Failed to delete document:', error)
+      } finally {
+        setIsDeleting(false)
+      }
     }
-    setShowDeleteDialog(false)
-    setSelectedDocument(null)
   }
 
   const handleConfirmRename = () => {
@@ -95,10 +151,24 @@ export function DocumentSidebar({
 
   const handleCreateDocument = async () => {
     if (newTitle.trim()) {
-      await onNewDocument(newTitle.trim())
-      setShowNewDocDialog(false)
-      setNewTitle('')
+      try {
+        setIsCreating(true)
+        await onNewDocument(newTitle.trim())
+        setShowNewDocDialog(false)
+        setNewTitle('')
+      } catch (error) {
+        console.error('Failed to create document:', error)
+      } finally {
+        setIsCreating(false)
+      }
     }
+  }
+
+  const handleDocumentSelect = async (id: string) => {
+    setLoadingDocId(id)
+    await onDocumentSelect(id)
+    setLoadingDocId(null)
+    onSheetOpenChange?.(false)
   }
 
   const SidebarContent = () => (
@@ -107,14 +177,43 @@ export function DocumentSidebar({
         <h2 className="font-semibold">Documents</h2>
         <div className="flex items-center gap-2">
           {isSignedIn ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNewDocumentClick}
-              className="dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800"
-            >
-              New
-            </Button>
+            <>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowSearchDialog(true)}
+                      className="h-8 w-8"
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Search (Alt + S)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleNewDocumentClick}
+                      className="dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800"
+                    >
+                      New
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>New Document (Alt + N)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </>
           ) : (
             <SignInButton mode="modal">
               <Button
@@ -131,21 +230,28 @@ export function DocumentSidebar({
       
       {isSignedIn ? (
         <ScrollArea className="flex-1">
-          <div className="space-y-2">
-            {documents.map((doc) => (
-              <DocumentItem
-                key={doc.id}
-                document={doc}
-                isActive={doc.id === activeDocumentId}
-                onSelect={(id) => {
-                  onDocumentSelect(id)
-                  onSheetOpenChange?.(false)
-                }}
-                onDelete={handleDeleteClick}
-                onRename={handleRenameClick}
-              />
-            ))}
-          </div>
+          {isLoadingDocs ? (
+            <div className="flex flex-col items-center justify-center h-[calc(100vh-120px)] gap-3">
+              <Loader2 className="h-10 w-10 animate-spin" />
+              <p className="text-sm text-muted-foreground font-medium">
+                Loading documents...
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {documents.map((doc) => (
+                <DocumentItem
+                  key={doc.id}
+                  document={doc}
+                  isActive={doc.id === activeDocumentId}
+                  isLoading={doc.id === loadingDocId}
+                  onSelect={handleDocumentSelect}
+                  onDelete={handleDeleteClick}
+                  onRename={handleRenameClick}
+                />
+              ))}
+            </div>
+          )}
         </ScrollArea>
       ) : (
         <div className="flex flex-col items-center justify-center h-full gap-4 text-center text-muted-foreground p-4">
@@ -210,14 +316,23 @@ export function DocumentSidebar({
             <Button
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
+              disabled={isDeleting}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleConfirmDelete}
+              disabled={isDeleting}
             >
-              Delete
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -278,15 +393,34 @@ export function DocumentSidebar({
             <Button
               variant="outline"
               onClick={() => setShowNewDocDialog(false)}
+              disabled={isCreating}
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateDocument}>
-              Create
+            <Button 
+              onClick={handleCreateDocument} 
+              disabled={isCreating}
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add the search dialog */}
+      <DocumentSearch
+        documents={documents}
+        onSelect={onDocumentSelect}
+        isOpen={showSearchDialog}
+        onOpenChange={setShowSearchDialog}
+      />
     </>
   )
 } 
