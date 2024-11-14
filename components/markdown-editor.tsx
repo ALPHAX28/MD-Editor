@@ -36,6 +36,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import katex from 'katex'
+import { Components } from 'react-markdown'
 
 interface CodeProps {
   node?: any;
@@ -575,6 +576,112 @@ ${previewContent}
     }
   }
 
+  const markdownComponents: Components = {
+    code: CodeBlock,
+    h1: ({children, ...props}) => (
+      <h1 className="text-3xl font-bold border-b border-gray-200 pb-4 mb-4" {...props}>
+        {children}
+      </h1>
+    ),
+    h2: ({children, ...props}) => (
+      <h2 className="text-2xl font-bold border-b border-gray-200 pb-3 mb-4" {...props}>
+        {children}
+      </h2>
+    ),
+    h3: ({children, ...props}) => (
+      <h3 className="text-xl font-bold mb-3" {...props}>{children}</h3>
+    ),
+    ul: ({children, ...props}) => (
+      <ul className="list-disc pl-6 mb-4 space-y-2" {...props}>{children}</ul>
+    ),
+    ol: ({children, ...props}) => (
+      <ol className="list-decimal pl-6 mb-4 space-y-2" {...props}>{children}</ol>
+    ),
+    li: ({children, ...props}) => (
+      <li className="mb-1" {...props}>{children}</li>
+    ),
+    blockquote: ({children, ...props}) => (
+      <blockquote className="border-l-4 border-gray-300 pl-4 py-2 my-4 bg-gray-50 dark:bg-gray-800" {...props}>
+        {children}
+      </blockquote>
+    ),
+    table: ({children, ...props}) => (
+      <div className="overflow-x-auto my-4">
+        <table className="min-w-full border-collapse" {...props}>{children}</table>
+      </div>
+    ),
+    th: ({children, ...props}) => (
+      <th className="border px-4 py-2 bg-gray-100 dark:bg-gray-700 font-semibold" {...props}>
+        {children}
+      </th>
+    ),
+    td: ({children, ...props}) => (
+      <td className="border px-4 py-2" {...props}>{children}</td>
+    ),
+    a: ({children, href, ...props}) => (
+      <a 
+        href={href}
+        className="text-blue-500 hover:text-blue-600 underline"
+        target="_blank"
+        rel="noopener noreferrer"
+        {...props}
+      >
+        {children}
+      </a>
+    ),
+    img: ({src, alt, ...props}) => (
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-full h-auto rounded-lg my-4"
+        {...props}
+      />
+    ),
+    hr: (props) => (
+      <hr className="my-8 border-t border-gray-300 dark:border-gray-600" {...props} />
+    ),
+    math: ({value}: {value: any}) => {
+      if (!value || typeof value !== 'string') return null;
+      try {
+        return (
+          <div className="my-2">
+            <span 
+              dangerouslySetInnerHTML={{ 
+                __html: katex.renderToString(value.toString(), {
+                  throwOnError: false,
+                  displayMode: true,
+                  strict: false
+                })
+              }} 
+            />
+          </div>
+        );
+      } catch (error) {
+        console.error('KaTeX error:', error);
+        return <div className="text-red-500">Error rendering math equation</div>;
+      }
+    },
+    inlineMath: ({value}: {value: any}) => {
+      if (!value || typeof value !== 'string') return null;
+      try {
+        return (
+          <span 
+            dangerouslySetInnerHTML={{ 
+              __html: katex.renderToString(value.toString(), {
+                throwOnError: false,
+                displayMode: false,
+                strict: false
+              })
+            }} 
+          />
+        );
+      } catch (error) {
+        console.error('KaTeX error:', error);
+        return <span className="text-red-500">Error rendering math equation</span>;
+      }
+    },
+  }
+
   return (
     <div className="relative h-full">
       <div className="flex h-screen overflow-hidden">
@@ -1000,111 +1107,7 @@ ${previewContent}
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm, remarkMath]}
                             rehypePlugins={[rehypeRaw, rehypeKatex]}
-                            components={{
-                              code: CodeBlock,
-                              h1: ({children, ...props}) => (
-                                <h1 className="text-3xl font-bold border-b border-gray-200 pb-4 mb-4" {...props}>
-                                  {children}
-                                </h1>
-                              ),
-                              h2: ({children, ...props}) => (
-                                <h2 className="text-2xl font-bold border-b border-gray-200 pb-3 mb-4" {...props}>
-                                  {children}
-                                </h2>
-                              ),
-                              h3: ({children, ...props}) => (
-                                <h3 className="text-xl font-bold mb-3" {...props}>{children}</h3>
-                              ),
-                              ul: ({children, ...props}) => (
-                                <ul className="list-disc pl-6 mb-4 space-y-2" {...props}>{children}</ul>
-                              ),
-                              ol: ({children, ...props}) => (
-                                <ol className="list-decimal pl-6 mb-4 space-y-2" {...props}>{children}</ol>
-                              ),
-                              li: ({children, ...props}) => (
-                                <li className="mb-1" {...props}>{children}</li>
-                              ),
-                              blockquote: ({children, ...props}) => (
-                                <blockquote className="border-l-4 border-gray-300 pl-4 py-2 my-4 bg-gray-50 dark:bg-gray-800" {...props}>
-                                  {children}
-                                </blockquote>
-                              ),
-                              table: ({children, ...props}) => (
-                                <div className="overflow-x-auto my-4">
-                                  <table className="min-w-full border-collapse" {...props}>{children}</table>
-                                </div>
-                              ),
-                              th: ({children, ...props}) => (
-                                <th className="border px-4 py-2 bg-gray-100 dark:bg-gray-700 font-semibold" {...props}>
-                                  {children}
-                                </th>
-                              ),
-                              td: ({children, ...props}) => (
-                                <td className="border px-4 py-2" {...props}>{children}</td>
-                              ),
-                              a: ({children, href, ...props}) => (
-                                <a 
-                                  href={href}
-                                  className="text-blue-500 hover:text-blue-600 underline"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  {...props}
-                                >
-                                  {children}
-                                </a>
-                              ),
-                              img: ({src, alt, ...props}) => (
-                                <img
-                                  src={src}
-                                  alt={alt}
-                                  className="max-w-full h-auto rounded-lg my-4"
-                                  {...props}
-                                />
-                              ),
-                              hr: (props) => (
-                                <hr className="my-8 border-t border-gray-300 dark:border-gray-600" {...props} />
-                              ),
-                              math: ({value}: {value: any}) => {
-                                if (!value || typeof value !== 'string') return null;
-                                try {
-                                  return (
-                                    <div className="my-2">
-                                      <span 
-                                        dangerouslySetInnerHTML={{ 
-                                          __html: katex.renderToString(value.toString(), {
-                                            throwOnError: false,
-                                            displayMode: true,
-                                            strict: false
-                                          })
-                                        }} 
-                                      />
-                                    </div>
-                                  );
-                                } catch (error) {
-                                  console.error('KaTeX error:', error);
-                                  return <div className="text-red-500">Error rendering math equation</div>;
-                                }
-                              },
-                              inlineMath: ({value}: {value: any}) => {
-                                if (!value || typeof value !== 'string') return null;
-                                try {
-                                  return (
-                                    <span 
-                                      dangerouslySetInnerHTML={{ 
-                                        __html: katex.renderToString(value.toString(), {
-                                          throwOnError: false,
-                                          displayMode: false,
-                                          strict: false
-                                        })
-                                      }} 
-                                    />
-                                  );
-                                } catch (error) {
-                                  console.error('KaTeX error:', error);
-                                  return <span className="text-red-500">Error rendering math equation</span>;
-                                }
-                              },
-                            }}
+                            components={markdownComponents}
                           >
                             {content}
                           </ReactMarkdown>
