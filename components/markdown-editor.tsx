@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { useAuth, SignIn, SignUp, UserButton, SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast"
-import { useTheme } from "@/components/theme-provider"
+import { useTheme } from "next-themes"
 import { dark, neobrutalism, shadesOfPurple } from "@clerk/themes";
 import NextLink from 'next/link'
 import { useAutosave } from '@/hooks/use-autosave'
@@ -54,7 +54,6 @@ type ClerkAppearance = {
 
 export function MarkdownEditor({ documentId }: { documentId?: string }) {
   const [tab, setTab] = useState('write')
-  const [darkMode, setDarkMode] = useState(false)
   const [isPdfExporting, setIsPdfExporting] = useState(false)
   const [isWordExporting, setIsWordExporting] = useState(false)
   const [isHtmlExporting, setIsHtmlExporting] = useState(false)
@@ -82,12 +81,12 @@ export function MarkdownEditor({ documentId }: { documentId?: string }) {
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   useEffect(() => {
-    if (darkMode) {
+    if (theme) {
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
     }
-  }, [darkMode])
+  }, [theme])
 
   useEffect(() => {
     if (isSignedIn) {
@@ -652,9 +651,9 @@ ${previewContent}
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => setDarkMode(!darkMode)}
+                      onClick={() => theme ? document.documentElement.classList.remove('dark') : document.documentElement.classList.add('dark')}
                     >
-                      {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                      {theme ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
