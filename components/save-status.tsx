@@ -37,10 +37,10 @@ export function SaveStatusIndicator({
 
   return (
     <div className={cn("flex items-center", className)}>
-      <TooltipProvider>
+      <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="relative cursor-pointer">
+            <div className="relative cursor-pointer touch-none">
               {isSaving && (
                 <div className="text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -60,14 +60,18 @@ export function SaveStatusIndicator({
               )}
             </div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="flex flex-col gap-2">
-            {isSaving && <p>Saving changes...</p>}
+          <TooltipContent 
+            side="bottom" 
+            className="flex flex-col gap-2 w-[200px] touch-none"
+            sideOffset={5}
+          >
+            {isSaving && <p className="text-center">Saving changes...</p>}
             {status === 'saved' && (
               <>
-                <p>All changes saved</p>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    Save again (Alt + Shift + S)
+                <p className="text-center">All changes saved</p>
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-sm text-muted-foreground whitespace-nowrap">
+                    Save again (Alt+Shift+S)
                   </p>
                   {onManualSave && (
                     <Button 
@@ -83,7 +87,7 @@ export function SaveStatusIndicator({
                 </div>
               </>
             )}
-            {status === 'error' && <p>Failed to save changes</p>}
+            {status === 'error' && <p className="text-center">Failed to save changes</p>}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
