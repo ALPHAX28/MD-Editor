@@ -576,9 +576,9 @@ ${previewContent}
     }
   }
 
-  const markdownComponents: Components = {
-    code: CodeBlock,
-    h1: ({children, ...props}) => (
+  const markdownComponents = {
+    code: CodeBlock as any,
+    h1: ({children, ...props}: any) => (
       <h1 className="text-3xl font-bold border-b border-gray-200 pb-4 mb-4" {...props}>
         {children}
       </h1>
@@ -679,8 +679,8 @@ ${previewContent}
         console.error('KaTeX error:', error);
         return <span className="text-red-500">Error rendering math equation</span>;
       }
-    },
-  }
+    }
+  } as Components;
 
   return (
     <div className="relative h-full">
