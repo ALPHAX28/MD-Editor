@@ -33,13 +33,15 @@ export function SaveStatusIndicator({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onManualSave])
 
+  const isSaving = status === 'saving'
+
   return (
     <div className={cn("flex items-center", className)}>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="relative cursor-pointer">
-              {status === 'saving' && (
+              {isSaving && (
                 <div className="text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                 </div>
@@ -59,7 +61,7 @@ export function SaveStatusIndicator({
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="flex flex-col gap-2">
-            {status === 'saving' && <p>Saving changes...</p>}
+            {isSaving && <p>Saving changes...</p>}
             {status === 'saved' && (
               <>
                 <p>All changes saved</p>
@@ -72,7 +74,7 @@ export function SaveStatusIndicator({
                       variant="outline" 
                       size="sm"
                       onClick={onManualSave}
-                      disabled={status === 'saving'}
+                      disabled={isSaving}
                       className="h-7 px-2"
                     >
                       Save
