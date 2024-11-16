@@ -7,9 +7,18 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { EditorButton } from "@/components/editor-button"
+import { useState } from "react"
+import { AuthDialog } from "@/components/auth/auth-dialog"
 
 export default function LandingPage() {
   const { isLoaded, isSignedIn } = useAuth()
+  const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in")
+
+  const handleAuthClick = (mode: "sign-in" | "sign-up") => {
+    setAuthMode(mode)
+    setShowAuthDialog(true)
+  }
 
   const features = [
     "GitHub-flavored markdown support",
@@ -39,16 +48,20 @@ export default function LandingPage() {
                 <>
                   {!isSignedIn ? (
                     <>
-                      <SignInButton mode="modal">
-                        <Button variant="ghost" size="sm">
-                          Sign in
-                        </Button>
-                      </SignInButton>
-                      <SignUpButton mode="modal">
-                        <Button variant="default" size="sm">
-                          Sign up
-                        </Button>
-                      </SignUpButton>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleAuthClick("sign-in")}
+                      >
+                        Sign in
+                      </Button>
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={() => handleAuthClick("sign-up")}
+                      >
+                        Sign up
+                      </Button>
                     </>
                   ) : (
                     <UserButton afterSignOutUrl="/" />
@@ -139,6 +152,12 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      <AuthDialog 
+        mode={authMode}
+        isOpen={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+      />
     </div>
   )
 }

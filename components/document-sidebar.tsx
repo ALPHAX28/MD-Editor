@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Menu, Plus, File, ChevronLeft, ChevronRight, Search, Loader2 } from "lucide-react"
-import { useAuth } from "@clerk/nextjs"
+import { useAuth, UserButton } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import {
   Sheet,
@@ -23,14 +23,16 @@ import { Label } from "@/components/ui/label"
 import { DocumentItem } from "@/components/document-item"
 import { Document } from "@/types"
 import { Input } from "@/components/ui/input"
-import { SignInButton } from "@clerk/nextjs"
 import { DocumentSearch } from "@/components/document-search"
+import { AuthDialog } from "@/components/auth/auth-dialog"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+import { toast } from "react-hot-toast"
 
 interface DocumentSidebarProps {
   documents: Document[]
@@ -77,6 +79,11 @@ export function DocumentSidebar({
   const [isLoadingDocs, setIsLoadingDocs] = useState(true)
   const isInitialLoad = useRef(true)
   const [loadingDocId, setLoadingDocId] = useState<string | null>(null)
+  const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in")
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameError, setRenameError] = useState("")
+  const [newDocError, setNewDocError] = useState("")
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -140,13 +147,37 @@ export function DocumentSidebar({
     }
   }
 
-  const handleConfirmRename = () => {
-    if (selectedDocument && newTitle.trim()) {
-      onRenameDocument(selectedDocument.id, newTitle.trim())
+  const handleConfirmRename = async () => {
+    if (!newTitle.trim()) {
+      setRenameError("Document name cannot be empty")
+      return
     }
-    setShowRenameDialog(false)
-    setSelectedDocument(null)
-    setNewTitle('')
+
+    if (selectedDocument) {
+      try {
+        setIsRenaming(true)
+        setRenameError("")
+        await onRenameDocument(selectedDocument.id, newTitle.trim())
+        setShowRenameDialog(false)
+        setSelectedDocument(null)
+        setNewTitle('')
+        toast({
+          title: "Success",
+          description: "Document renamed successfully",
+          duration: 3000,
+        })
+      } catch (error) {
+        console.error('Failed to rename document:', error)
+        toast({
+          title: "Error",
+          description: "Failed to rename document",
+          variant: "destructive",
+          duration: 3000,
+        })
+      } finally {
+        setIsRenaming(false)
+      }
+    }
   }
 
   const handleNewDocumentClick = () => {
@@ -155,17 +186,21 @@ export function DocumentSidebar({
   }
 
   const handleCreateDocument = async () => {
-    if (newTitle.trim()) {
-      try {
-        setIsCreating(true)
-        await onNewDocument(newTitle.trim())
-        setShowNewDocDialog(false)
-        setNewTitle('')
-      } catch (error) {
-        console.error('Failed to create document:', error)
-      } finally {
-        setIsCreating(false)
-      }
+    if (!newTitle.trim()) {
+      setNewDocError("Document name cannot be empty")
+      return
+    }
+
+    try {
+      setIsCreating(true)
+      setNewDocError("")
+      await onNewDocument(newTitle.trim())
+      setShowNewDocDialog(false)
+      setNewTitle('')
+    } catch (error) {
+      console.error('Failed to create document:', error)
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -223,15 +258,17 @@ export function DocumentSidebar({
               </TooltipProvider>
             </>
           ) : (
-            <SignInButton mode="modal">
-              <Button
-                variant="outline"
-                size="sm"
-                className="dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800"
-              >
-                Sign in
-              </Button>
-            </SignInButton>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAuthMode("sign-in")
+                setShowAuthDialog(true)
+              }}
+              className="bg-white text-black hover:bg-gray-100 dark:bg-white dark:text-black dark:hover:bg-gray-100"
+            >
+              Sign in
+            </Button>
           )}
         </div>
       </div>
@@ -264,11 +301,16 @@ export function DocumentSidebar({
       ) : (
         <div className="flex flex-col items-center justify-center h-full gap-4 text-center text-muted-foreground p-4">
           <p>&quot;Sign in to create and manage multiple documents&quot;</p>
-          <SignInButton mode="modal">
-            <Button variant="outline" size="sm">
-              Sign in to get started
-            </Button>
-          </SignInButton>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setAuthMode("sign-in")
+              setShowAuthDialog(true)
+            }}
+          >
+            Sign in to get started
+          </Button>
         </div>
       )}
     </div>
@@ -356,23 +398,52 @@ export function DocumentSidebar({
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="Document name"
-            />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={newTitle}
+                  onChange={(e) => {
+                    setNewTitle(e.target.value)
+                    setRenameError("")  // Clear error when user types
+                  }}
+                  placeholder="Document name"
+                  className={cn(
+                    renameError && "border-red-500 focus-visible:ring-red-500"
+                  )}
+                />
+                {renameError && (
+                  <p className="text-sm text-red-500">
+                    {renameError}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setShowRenameDialog(false)}
+              onClick={() => {
+                setShowRenameDialog(false)
+                setRenameError("")
+              }}
+              disabled={isRenaming}
             >
               Cancel
             </Button>
-            <Button onClick={handleConfirmRename}>
-              Rename
+            <Button 
+              onClick={handleConfirmRename}
+              disabled={isRenaming}
+            >
+              {isRenaming ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Renaming...
+                </>
+              ) : (
+                'Rename'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -388,19 +459,37 @@ export function DocumentSidebar({
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="new-doc-name">Document Name</Label>
-            <Input
-              id="new-doc-name"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="Untitled Document"
-              autoFocus
-            />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-doc-name">Document Name</Label>
+                <Input
+                  id="new-doc-name"
+                  value={newTitle}
+                  onChange={(e) => {
+                    setNewTitle(e.target.value)
+                    setNewDocError("")  // Clear error when user types
+                  }}
+                  placeholder="Untitled Document"
+                  autoFocus
+                  className={cn(
+                    newDocError && "border-red-500 focus-visible:ring-red-500"
+                  )}
+                />
+                {newDocError && (
+                  <p className="text-sm text-red-500">
+                    {newDocError}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setShowNewDocDialog(false)}
+              onClick={() => {
+                setShowNewDocDialog(false)
+                setNewDocError("")
+              }}
               disabled={isCreating}
             >
               Cancel
@@ -428,6 +517,12 @@ export function DocumentSidebar({
         onSelect={onDocumentSelect}
         isOpen={showSearchDialog}
         onOpenChange={setShowSearchDialog}
+      />
+
+      <AuthDialog 
+        mode={authMode}
+        isOpen={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
       />
     </>
   )

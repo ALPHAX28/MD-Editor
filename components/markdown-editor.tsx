@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Bold, Italic, Underline, List, Image as ImageIcon, Link as LinkIcon, Table, FileDown, Code, Quote, Heading1, Heading2, Heading3, CheckSquare, Strikethrough, Moon, Sun, Loader2, Copy, Check, Menu } from 'lucide-react'
+import { Bold, Italic, Underline, List, Image as ImageIcon, Link as LinkIcon, Table, FileDown, Code, Quote, Heading1, Heading2, Heading3, CheckSquare, Strikethrough, Moon, Sun, Loader2, Copy, Check, Menu, Share } from 'lucide-react'
 import { saveAs } from 'file-saver'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -37,6 +37,10 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import katex from 'katex'
 import { Components } from 'react-markdown'
+import { ShareDialog } from "@/components/share-dialog"
+import { cn } from "@/lib/utils"
+import { useLocalStorage } from '@/hooks/use-local-storage'
+import { AuthDialog } from "@/components/auth/auth-dialog"
 
 interface CodeProps {
   node?: unknown;
@@ -60,7 +64,21 @@ type ClerkAppearance = {
   };
 };
 
-export function MarkdownEditor({ documentId }: { documentId?: string }) {
+interface MarkdownEditorProps {
+  documentId?: string
+  isShared?: boolean
+  shareMode?: string
+  initialContent?: string
+  title?: string
+}
+
+export function MarkdownEditor({ 
+  documentId,
+  isShared = false,
+  shareMode = 'private',
+  initialContent = '',
+  title
+}: MarkdownEditorProps) {
   const [tab, setTab] = useState('write')
   const [isPdfExporting, setIsPdfExporting] = useState(false)
   const [isWordExporting, setIsWordExporting] = useState(false)
@@ -70,7 +88,8 @@ export function MarkdownEditor({ documentId }: { documentId?: string }) {
   const [dialogMessage, setDialogMessage] = useState('')
   const { isLoaded, isSignedIn, userId } = useAuth();
   const { user } = useUser();
-  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in")
   const { toast } = useToast()
   const { theme, setTheme } = useTheme()
   const [documents, setDocuments] = useState<Document[]>([])
@@ -83,18 +102,24 @@ export function MarkdownEditor({ documentId }: { documentId?: string }) {
     saveStatus, 
     setLastSaved, 
     setSaveStatus
-  } = useAutosave(documentId)
+  } = useAutosave(documentId, initialContent, isShared, shareMode)
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [localTheme, setLocalTheme] = useLocalStorage('md-editor-theme', 'dark')
+
+  const isReadOnly = isShared && shareMode === 'view'
 
   useEffect(() => {
-    if (theme) {
+    if (localTheme === 'dark') {
       document.documentElement.classList.add('dark')
+      setTheme('dark')
     } else {
       document.documentElement.classList.remove('dark')
+      setTheme('light')
     }
-  }, [theme])
+  }, [localTheme, setTheme])
 
   useEffect(() => {
     if (isSignedIn) {
@@ -580,6 +605,41 @@ ${previewContent}
     }
   }
 
+  const handleShare = async (mode: "view" | "edit") => {
+    if (!activeDocumentId) {
+      toast({
+        title: "Error",
+        description: "Please save the document before sharing",
+        variant: "destructive",
+      })
+      throw new Error("No document ID")
+    }
+
+    try {
+      const response = await fetch(`/api/documents/${activeDocumentId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to share document')
+      }
+      
+      const data = await response.json()
+      return `${window.location.origin}/shared/${data.shareToken}`
+    } catch (error) {
+      console.error('Share error:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to share document",
+        variant: "destructive",
+      })
+      throw error
+    }
+  }
+
   const markdownComponents = {
     code: CodeBlock as any,
     h1: ({children, ...props}: any) => (
@@ -692,22 +752,31 @@ ${previewContent}
     }
   } as Components;
 
+  const toggleTheme = () => {
+    const newTheme = localTheme === 'dark' ? 'light' : 'dark'
+    setLocalTheme(newTheme)
+  }
+
   return (
     <div className="relative h-full">
       <div className="flex h-screen overflow-hidden">
-        <DocumentSidebar
-          documents={documents}
-          activeDocumentId={activeDocumentId}
-          onDocumentSelect={handleDocumentSelect}
-          onNewDocument={handleNewDocument}
-          onDeleteDocument={handleDeleteDocument}
-          onRenameDocument={handleRenameDocument}
-          isCollapsed={isSidebarCollapsed}
-          onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          isSheetOpen={isSheetOpen}
-          onSheetOpenChange={setIsSheetOpen}
-        />
-        <div className="flex-1 flex flex-col w-full overflow-hidden">
+        {!isShared && (
+          <DocumentSidebar
+            documents={documents}
+            activeDocumentId={activeDocumentId}
+            onDocumentSelect={handleDocumentSelect}
+            onNewDocument={handleNewDocument}
+            onDeleteDocument={handleDeleteDocument}
+            onRenameDocument={handleRenameDocument}
+            isCollapsed={isSidebarCollapsed}
+            onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            isSheetOpen={isSheetOpen}
+            onSheetOpenChange={setIsSheetOpen}
+          />
+        )}
+        <div className={cn(
+          "flex-1 flex flex-col w-full overflow-hidden"
+        )}>
           <div className="container mx-auto px-2 sm:px-6 py-2 sm:py-6 dark:bg-gray-900 dark:text-white min-h-screen overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -754,16 +823,26 @@ ${previewContent}
                           />
                         ) : (
                           <div className="hidden sm:flex gap-2">
-                            <SignInButton mode="modal" afterSignInUrl={window?.location?.pathname}>
-                              <Button variant="outline" size="sm">
-                                Sign in
-                              </Button>
-                            </SignInButton>
-                            <SignUpButton mode="modal" afterSignUpUrl={window?.location?.pathname}>
-                              <Button variant="outline" size="sm">
-                                Sign up
-                              </Button>
-                            </SignUpButton>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setAuthMode("sign-in")
+                                setShowAuthDialog(true)
+                              }}
+                            >
+                              Sign in
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setAuthMode("sign-up")
+                                setShowAuthDialog(true)
+                              }}
+                            >
+                              Sign up
+                            </Button>
                           </div>
                         )}
                       </>
@@ -771,9 +850,9 @@ ${previewContent}
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => theme ? document.documentElement.classList.remove('dark') : document.documentElement.classList.add('dark')}
+                      onClick={toggleTheme}
                     >
-                      {theme ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                      {localTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
@@ -781,16 +860,28 @@ ${previewContent}
                 {/* Mobile Sign In/Up Buttons */}
                 {isLoaded && !isSignedIn && (
                   <div className="flex sm:hidden gap-2 w-full">
-                    <SignInButton mode="modal" afterSignInUrl={window?.location?.pathname}>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Sign in
-                      </Button>
-                    </SignInButton>
-                    <SignUpButton mode="modal" afterSignUpUrl={window?.location?.pathname}>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Sign up
-                      </Button>
-                    </SignUpButton>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => {
+                        setAuthMode("sign-in")
+                        setShowAuthDialog(true)
+                      }}
+                    >
+                      Sign in
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => {
+                        setAuthMode("sign-up")
+                        setShowAuthDialog(true)
+                      }}
+                    >
+                      Sign up
+                    </Button>
                   </div>
                 )}
 
@@ -856,6 +947,18 @@ ${previewContent}
                       </>
                     )}
                   </Button>
+                  {activeDocumentId && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowShareDialog(true)}
+                      size="sm"
+                      className="whitespace-nowrap"
+                    >
+                      <Share className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Share</span>
+                      <span className="sm:hidden">Share</span>
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -863,6 +966,7 @@ ${previewContent}
                 layout
                 className="bg-card rounded-lg shadow-lg overflow-hidden"
               >
+                {!isReadOnly && (
                 <div className="border-b pb-2 overflow-x-auto">
                   <div className="flex items-center gap-1 sm:gap-2 p-2 min-w-max">
                     <Button 
@@ -1048,6 +1152,7 @@ ${previewContent}
                     </Button>
                   </div>
                 </div>
+                )}
 
                 <Tabs value={tab} onValueChange={setTab} className="min-h-[300px] sm:min-h-[600px] pt-2 relative">
                   <div className="border-b px-2 sm:px-4 pb-2">
@@ -1093,9 +1198,13 @@ ${previewContent}
                       >
                         <textarea
                           value={content}
-                          onChange={(e) => setContent(e.target.value)}
-                          className="w-full min-h-[600px] p-4 font-mono text-sm bg-background dark:bg-gray-800 dark:text-white resize-none focus:outline-none"
-                          placeholder="Start writing..."
+                          onChange={(e) => !isReadOnly && setContent(e.target.value)}
+                          className={cn(
+                            "w-full min-h-[600px] p-4 font-mono text-sm bg-background dark:bg-gray-800 dark:text-white resize-none focus:outline-none",
+                            isReadOnly && "cursor-not-allowed opacity-50"
+                          )}
+                          placeholder={isReadOnly ? "This document is view-only" : "Start writing..."}
+                          readOnly={isReadOnly}
                         />
                       </motion.div>
                     </TabsContent>
@@ -1146,97 +1255,19 @@ ${previewContent}
               </DialogHeader>
             </DialogContent>
           </Dialog>
-          <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
-            <DialogContent className="sm:max-w-[480px] p-0 bg-background">
-              <DialogHeader className="p-6 pb-2">
-                <DialogTitle className="text-center">Authentication Required</DialogTitle>
-                <DialogDescription className="text-center">
-                  Please sign in to export your document
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex items-center justify-center w-full px-6 pb-6">
-                <SignIn 
-                  afterSignInUrl={window?.location?.pathname}
-                  appearance={{
-                    baseTheme: theme === "dark" ? dark : undefined,
-                    elements: {
-                      rootBox: {
-                        width: "100%",
-                        margin: "0 auto",
-                        maxWidth: "400px"
-                      },
-                      card: {
-                        boxShadow: "none",
-                        width: "100%",
-                        background: "transparent",
-                        margin: "0 auto"
-                      },
-                      headerTitle: { display: "none" },
-                      headerSubtitle: { display: "none" },
-                      socialButtonsBlockButton: {
-                        border: "1px solid hsl(var(--border))",
-                        background: "transparent",
-                        color: "hsl(var(--foreground))",
-                        width: "100%"
-                      },
-                      formFieldInput: {
-                        background: "transparent",
-                        border: "1px solid hsl(var(--border))",
-                        color: "hsl(var(--foreground))",
-                        width: "100%"
-                      },
-                      formFieldLabel: {
-                        color: "hsl(var(--foreground))",
-                        fontSize: "14px"
-                      },
-                      formFieldLabelRow: {
-                        color: "hsl(var(--foreground))"
-                      },
-                      formButtonPrimary: {
-                        backgroundColor: "hsl(var(--primary))",
-                        color: "hsl(var(--background))",
-                        width: "100%"
-                      },
-                      footerActionLink: {
-                        color: "hsl(var(--primary))"
-                      },
-                      footer: {
-                        color: "hsl(var(--muted-foreground))",
-                        textAlign: "center"
-                      },
-                      footerText: {
-                        color: "hsl(var(--muted-foreground))"
-                      },
-                      dividerLine: {
-                        background: "hsl(var(--border))"
-                      },
-                      dividerText: {
-                        color: "hsl(var(--muted-foreground))"
-                      },
-                      form: {
-                        width: "100%"
-                      },
-                      formField: {
-                        width: "100%"
-                      },
-                      formFieldAction: {
-                        color: "hsl(var(--primary))"
-                      },
-                      identityPreviewText: {
-                        color: "hsl(var(--foreground))"
-                      },
-                      formFieldHintText: {
-                        color: "hsl(var(--muted-foreground))"
-                      },
-                      footerActionText: {
-                        color: "hsl(var(--muted-foreground))"
-                      }
-                    }
-                  }}
-                />
-              </div>
-            </DialogContent>
-          </Dialog>
+          <AuthDialog 
+            mode={authMode}
+            isOpen={showAuthDialog}
+            onOpenChange={setShowAuthDialog}
+          />
+          {activeDocumentId && (
+            <ShareDialog
+              isOpen={showShareDialog}
+              onOpenChange={setShowShareDialog}
+              documentId={activeDocumentId}
+              onShare={handleShare}
+            />
+          )}
         </div>
       </div>
     </div>

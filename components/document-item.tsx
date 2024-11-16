@@ -45,11 +45,11 @@ export function DocumentItem({
         }`}
         onClick={() => onSelect(document.id)}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-1 min-w-0 max-w-[150px]">
           <File className="h-4 w-4 shrink-0" />
-          <span className="truncate">{document.title}</span>
+          <span className="truncate text-sm">{document.title}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-2">
           {isLoading && (
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           )}

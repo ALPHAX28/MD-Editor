@@ -12,9 +12,11 @@ export function EditorButton() {
   const handleClick = async () => {
     try {
       setIsLoading(true)
+      await new Promise(resolve => setTimeout(resolve, 500))
       router.push('/editor')
     } catch (error) {
       console.error('Navigation failed:', error)
+      setIsLoading(false)
     }
   }
 
@@ -23,13 +25,18 @@ export function EditorButton() {
       onClick={handleClick}
       disabled={isLoading}
       size="lg"
-      className="bg-black text-white dark:bg-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
+      className={`
+        bg-black text-white dark:bg-white dark:text-black 
+        hover:bg-gray-800 dark:hover:bg-gray-200
+        transition-all duration-200
+        ${isLoading ? 'opacity-80' : ''}
+      `}
     >
       {isLoading ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Loading Editor...
-        </>
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Opening Editor...</span>
+        </div>
       ) : (
         'Go to Editor'
       )}

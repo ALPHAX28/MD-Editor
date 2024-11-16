@@ -21,9 +21,30 @@ model Document {
   isPublic  Boolean  @default(false)
   isArchived Boolean @default(false)
   isAutosave Boolean @default(false)
+  shareMode ShareMode @default(PRIVATE)
+  shareToken String? @unique
+  sharedWith SharedUser[]
 
   @@index([userId])
   @@map("documents")
+}
+
+model SharedUser {
+  id         String     @id @default(cuid())
+  userId     String
+  documentId String
+  document   Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  mode       ShareMode
+  createdAt  DateTime   @default(now())
+
+  @@unique([userId, documentId])
+  @@map("shared_users")
+}
+
+enum ShareMode {
+  PRIVATE
+  VIEW
+  EDIT
 }
 
 // Your models will go here 
