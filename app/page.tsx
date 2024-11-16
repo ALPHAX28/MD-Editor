@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs"
-import { ArrowRight, Check, FileDown, Github, Moon, Sun, CheckCircle } from "lucide-react"
+import { Check, FileDown, Github } from "lucide-react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { ThemeToggle } from "@/components/theme-toggle"

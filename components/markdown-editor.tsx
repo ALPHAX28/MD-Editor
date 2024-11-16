@@ -39,11 +39,15 @@ import katex from 'katex'
 import { Components } from 'react-markdown'
 
 interface CodeProps {
-  node?: any;
+  node?: unknown;
   inline?: boolean;
   className?: string;
-  children: any;
-  style?: any;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}
+
+type MathProps = {
+  value: string;
 }
 
 type ClerkAppearance = {

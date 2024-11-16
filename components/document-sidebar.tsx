@@ -263,7 +263,7 @@ export function DocumentSidebar({
         </ScrollArea>
       ) : (
         <div className="flex flex-col items-center justify-center h-full gap-4 text-center text-muted-foreground p-4">
-          <p>Sign in to create and manage multiple documents</p>
+          <p>&quot;Sign in to create and manage multiple documents&quot;</p>
           <SignInButton mode="modal">
             <Button variant="outline" size="sm">
               Sign in to get started
