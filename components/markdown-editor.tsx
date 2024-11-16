@@ -767,14 +767,9 @@ ${previewContent}
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        setTheme(theme === "dark" ? "light" : "dark")
-                      }}
-                      className="h-8 w-8"
-                      type="button"
+                      onClick={() => theme ? document.documentElement.classList.remove('dark') : document.documentElement.classList.add('dark')}
                     >
-                      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                      {theme ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
