@@ -68,7 +68,7 @@ export function MarkdownEditor({ documentId }: { documentId?: string }) {
   const { user } = useUser();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const { toast } = useToast()
-  const { theme } = useTheme()
+  const { theme, setTheme } = useTheme()
   const [documents, setDocuments] = useState<Document[]>([])
   const [activeDocumentId, setActiveDocumentId] = useState<string>()
   
@@ -618,17 +618,23 @@ ${previewContent}
     td: ({children, ...props}) => (
       <td className="border px-4 py-2" {...props}>{children}</td>
     ),
-    a: ({children, href, ...props}) => (
-      <a 
-        href={href}
-        className="text-blue-500 hover:text-blue-600 underline"
-        target="_blank"
-        rel="noopener noreferrer"
-        {...props}
-      >
-        {children}
-      </a>
-    ),
+    a: ({children, href, ...props}) => {
+      const formattedHref = href?.startsWith('http') 
+        ? href 
+        : `https://${href}`
+      
+      return (
+        <a 
+          href={formattedHref}
+          className="text-blue-500 hover:text-blue-600 underline"
+          target="_blank"
+          rel="noopener noreferrer"
+          {...props}
+        >
+          {children}
+        </a>
+      )
+    },
     img: ({src, alt, ...props}) => (
       <img
         src={src}
@@ -761,9 +767,9 @@ ${previewContent}
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => theme ? document.documentElement.classList.remove('dark') : document.documentElement.classList.add('dark')}
+                      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                     >
-                      {theme ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
@@ -995,8 +1001,15 @@ ${previewContent}
                           <Button 
                             onClick={() => {
                               const text = (document.getElementById('link-text') as HTMLInputElement)?.value
-                              const url = (document.getElementById('link-url') as HTMLInputElement)?.value
-                              if (text && url) insertAtCursor(`[${text}](${url})`)
+                              let url = (document.getElementById('link-url') as HTMLInputElement)?.value
+                              
+                              if (url && !url.startsWith('http')) {
+                                url = `https://${url}`
+                              }
+                              
+                              if (text && url) {
+                                insertAtCursor(`[${text}](${url})`)
+                              }
                             }}
                             className="w-full"
                           >
