@@ -767,7 +767,12 @@ ${previewContent}
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setTheme(theme === "dark" ? "light" : "dark")
+                      }}
+                      className="h-8 w-8"
+                      type="button"
                     >
                       {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </Button>
