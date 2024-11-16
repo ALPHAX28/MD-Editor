@@ -32,7 +32,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { toast } from "react-hot-toast"
+import { useToast } from "@/hooks/use-toast"
 
 interface DocumentSidebarProps {
   documents: Document[]
@@ -84,6 +84,7 @@ export function DocumentSidebar({
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameError, setRenameError] = useState("")
   const [newDocError, setNewDocError] = useState("")
+  const { toast } = useToast()
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -162,17 +163,13 @@ export function DocumentSidebar({
         setSelectedDocument(null)
         setNewTitle('')
         toast({
-          title: "Success",
           description: "Document renamed successfully",
-          duration: 3000,
         })
       } catch (error) {
         console.error('Failed to rename document:', error)
         toast({
-          title: "Error",
-          description: "Failed to rename document",
           variant: "destructive",
-          duration: 3000,
+          description: "Failed to rename document",
         })
       } finally {
         setIsRenaming(false)
@@ -197,8 +194,15 @@ export function DocumentSidebar({
       await onNewDocument(newTitle.trim())
       setShowNewDocDialog(false)
       setNewTitle('')
+      toast({
+        description: "Document created successfully",
+      })
     } catch (error) {
       console.error('Failed to create document:', error)
+      toast({
+        variant: "destructive",
+        description: "Failed to create document",
+      })
     } finally {
       setIsCreating(false)
     }
