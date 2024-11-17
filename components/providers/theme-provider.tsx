@@ -18,41 +18,40 @@ const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undef
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
+  defaultTheme = "dark",
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(defaultTheme)
 
   useEffect(() => {
     try {
-      const storedTheme = localStorage.getItem("md-editor-theme") as Theme
+      const storedTheme = localStorage.getItem("theme") as Theme
       if (storedTheme) {
         setTheme(storedTheme)
       }
     } catch (error) {
       console.warn("Failed to read theme from localStorage:", error)
-      // Fallback to default theme
       setTheme(defaultTheme)
     }
   }, [defaultTheme])
 
   useEffect(() => {
     try {
-      localStorage.setItem("md-editor-theme", theme)
+      localStorage.setItem("theme", theme)
+
+      const root = window.document.documentElement
+      root.classList.remove("light", "dark")
+
+      if (theme === "system") {
+        const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+          .matches
+          ? "dark"
+          : "light"
+        root.classList.add(systemTheme)
+      } else {
+        root.classList.add(theme)
+      }
     } catch (error) {
-      console.warn("Failed to save theme to localStorage:", error)
-    }
-
-    const root = window.document.documentElement
-    root.classList.remove("light", "dark")
-
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light"
-      root.classList.add(systemTheme)
-    } else {
-      root.classList.add(theme)
+      console.warn("Failed to save theme:", error)
     }
   }, [theme])
 
@@ -72,4 +71,14 @@ export function ThemeProvider({
       {children}
     </ThemeProviderContext.Provider>
   )
+}
+
+export const useTheme = () => {
+  const context = useContext(ThemeProviderContext)
+
+  if (context === undefined) {
+    throw new Error("useTheme must be used within a ThemeProvider")
+  }
+
+  return context
 } 

@@ -12,9 +12,19 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const document = await prisma.document.findUnique({
+    const document = await prisma.document.findFirst({
       where: {
         id: params.documentId,
+        OR: [
+          { userId: userId },
+          {
+            sharedWith: {
+              some: {
+                userId: userId
+              }
+            }
+          }
+        ]
       }
     })
 
@@ -22,13 +32,9 @@ export async function GET(
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    if (document.userId !== userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     return NextResponse.json(document)
   } catch (error) {
-    console.error("[DOCUMENT_GET]", error)
+    console.error('[DOCUMENT_GET_ERROR]', error)
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
@@ -43,43 +49,52 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // First check if document exists and belongs to user
-    const existingDoc = await prisma.document.findUnique({
+    const { content, title } = await req.json()
+
+    // First, check if the document exists and user has access
+    const existingDoc = await prisma.document.findFirst({
       where: {
         id: params.documentId,
+        OR: [
+          { userId: userId },
+          {
+            sharedWith: {
+              some: {
+                userId: userId,
+                accessMode: 'EDIT'
+              }
+            }
+          }
+        ]
       }
     })
 
     if (!existingDoc) {
-      return NextResponse.json({ error: "Document not found" }, { status: 404 })
+      return NextResponse.json({ error: "Document not found or access denied" }, { status: 404 })
     }
 
-    if (existingDoc.userId !== userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { title, content } = await req.json()
-    console.log("Updating document:", { documentId: params.documentId, title, content }) // Debug log
-
-    const document = await prisma.document.update({
+    // Update the document
+    const updatedDocument = await prisma.document.update({
       where: {
-        id: params.documentId,
+        id: params.documentId
       },
       data: {
-        ...(title !== undefined && { title }),
-        ...(content !== undefined && { content }),
-        updatedAt: new Date(),
+        content,
+        ...(title && { title }),
+        isAutosave: false // Ensure we're not creating autosave documents
       }
     })
 
-    console.log("Updated document:", document) // Debug log
-    return NextResponse.json(document)
+    console.log('Document updated:', {
+      id: updatedDocument.id,
+      content: updatedDocument.content?.substring(0, 50) + '...',
+      userId
+    })
+
+    return NextResponse.json(updatedDocument)
   } catch (error) {
-    console.error("[DOCUMENT_PATCH] Full error:", error)
-    return NextResponse.json({ 
-      error: "Internal Server Error",
-      details: error instanceof Error ? error.message : "Unknown error"
-    }, { status: 500 })
+    console.error('[DOCUMENT_UPDATE_ERROR]', error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
 

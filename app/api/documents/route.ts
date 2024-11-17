@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs'
-import { supabase } from '@/lib/supabase'
+import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
@@ -10,17 +10,17 @@ export async function GET() {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const { data, error } = await supabase
-      .from('documents')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const documents = await prisma.document.findMany({
+      where: {
+        userId: userId,
+        isAutosave: false
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
 
-    if (error) {
-      console.error('Supabase error:', error)
-      return new NextResponse('Database Error', { status: 500 })
-    }
-
-    return NextResponse.json(data)
+    return NextResponse.json(documents)
   } catch (error) {
     console.error('API route error:', error)
     return new NextResponse('Internal Error', { status: 500 })
@@ -36,25 +36,16 @@ export async function POST(req: Request) {
 
     const { title, content } = await req.json()
 
-    const { data, error } = await supabase
-      .from('documents')
-      .insert([
-        {
-          title,
-          content: content || '',
-          user_id: userId,
-          is_autosave: false,
-        }
-      ])
-      .select()
-      .single()
+    const document = await prisma.document.create({
+      data: {
+        title,
+        content: content || '',
+        userId,
+        isAutosave: false,
+      }
+    })
 
-    if (error) {
-      console.error('Supabase error:', error)
-      return NextResponse.json({ error: "Database Error" }, { status: 500 })
-    }
-
-    return NextResponse.json(data)
+    return NextResponse.json(document)
   } catch (error) {
     console.error("[DOCUMENTS_POST]", error)
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })

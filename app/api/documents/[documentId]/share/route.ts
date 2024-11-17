@@ -10,35 +10,49 @@ export async function POST(
   try {
     const { userId } = auth()
     if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { mode } = await req.json()
-    
+
+    // Verify document ownership
     const document = await prisma.document.findUnique({
-      where: { 
+      where: {
         id: params.documentId,
-        userId 
+        userId: userId
       }
     })
 
     if (!document) {
-      return new NextResponse("Not found", { status: 404 })
+      return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
+    // Generate a unique share token
     const shareToken = nanoid()
-    
-    const updatedDoc = await prisma.document.update({
-      where: { id: params.documentId },
+
+    // Update document with share settings
+    const updatedDocument = await prisma.document.update({
+      where: {
+        id: params.documentId
+      },
       data: {
-        shareMode: mode === 'edit' ? 'EDIT' : 'VIEW',
-        shareToken
+        shareToken: shareToken,
+        shareMode: mode.toUpperCase(),
+        sharedWith: {
+          deleteMany: {}, // Reset shared access
+        }
       }
     })
 
-    return NextResponse.json({ shareToken: updatedDoc.shareToken })
+    return NextResponse.json({
+      shareToken: updatedDocument.shareToken,
+      mode: updatedDocument.shareMode
+    })
   } catch (error) {
     console.error('[SHARE_ERROR]', error)
-    return new NextResponse("Internal Error", { status: 500 })
+    return NextResponse.json(
+      { error: "Internal Server Error" }, 
+      { status: 500 }
+    )
   }
 } 

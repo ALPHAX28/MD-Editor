@@ -12,40 +12,28 @@ datasource db {
 }
 
 model Document {
-  id        String   @id @default(cuid())
-  title     String   @default("Untitled")
-  content   String   @db.Text
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isPublic  Boolean  @default(false)
-  isArchived Boolean @default(false)
-  isAutosave Boolean @default(false)
-  shareMode ShareMode @default(PRIVATE)
-  shareToken String? @unique
-  sharedWith SharedUser[]
-  sharedUsers Json?
-
-  @@index([userId])
-  @@map("documents")
-}
-
-model SharedUser {
-  id         String     @id @default(cuid())
+  id         String   @id @default(uuid())
+  title      String?
+  content    String?  @db.Text
   userId     String
-  documentId String
-  document   Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  mode       ShareMode
-  createdAt  DateTime   @default(now())
-
-  @@unique([userId, documentId])
-  @@map("shared_users")
+  isAutosave Boolean  @default(false)
+  shareMode  String?  // "VIEW" or "EDIT"
+  shareToken String?  @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  sharedWith SharedDocument[]
 }
 
-enum ShareMode {
-  PRIVATE
-  VIEW
-  EDIT
+model SharedDocument {
+  id         String   @id @default(uuid())
+  documentId String
+  userId     String   // The user who has access
+  accessMode String   // "VIEW" or "EDIT"
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([documentId, userId])
 }
 
 // Your models will go here 

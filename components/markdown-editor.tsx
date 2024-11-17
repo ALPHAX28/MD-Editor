@@ -849,6 +849,12 @@ ${previewContent}
     }
   }
 
+  const [pathname, setPathname] = useState<string>('')
+
+  useEffect(() => {
+    setPathname(window.location.pathname)
+  }, [])
+
   return (
     <div className="relative h-full">
       <div className="flex h-screen overflow-hidden">
@@ -912,7 +918,7 @@ ${previewContent}
                               shareMode={shareMode}
                             />
                             <UserButton 
-                              afterSignOutUrl={`${window?.location?.pathname}?reload=true`}
+                              afterSignOutUrl={`${pathname}?reload=true`}
                             />
                           </div>
                         ) : (

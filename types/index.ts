@@ -8,4 +8,12 @@ export interface Document {
   isPublic: boolean
   isAutosave: boolean
   isArchived: boolean
+}
+
+export interface MarkdownEditorProps {
+  documentId?: string
+  isShared?: boolean
+  shareMode?: string
+  initialContent?: string
+  title?: string
 } 

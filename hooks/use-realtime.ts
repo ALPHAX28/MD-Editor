@@ -133,17 +133,7 @@ export function useRealtime(documentId: string, shareMode?: string) {
           })
 
           // Force reload to get new permissions
-          if (payload.forceReload) {
-            setTimeout(() => {
-              window.location.reload()
-            }, 1000) // Give time for the toast to show
-          }
-        } else {
-          // For other users, just update the UI if needed
-          toast({
-            title: "Access Updated",
-            description: `${payload.userName}'s edit access has been revoked.`,
-          })
+          window.location.reload()
         }
       })
 

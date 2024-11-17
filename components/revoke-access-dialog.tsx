@@ -1,42 +1,47 @@
+"use client"
+
+import { useState } from "react"
+import { Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
+import { Presence } from "@/hooks/use-realtime"
 
 interface RevokeAccessDialogProps {
-  documentId: string
-  userId: string
-  userName: string
-  onRevoked: () => void
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  user: Presence | null
+  documentId?: string
 }
 
-export function RevokeAccessDialog({ 
-  documentId, 
-  userId, 
-  userName,
-  onRevoked 
+export function RevokeAccessDialog({
+  isOpen,
+  onOpenChange,
+  user,
+  documentId
 }: RevokeAccessDialogProps) {
-  const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
 
-  const handleRevoke = async () => {
-    setIsLoading(true)
+  const handleRevokeAccess = async () => {
+    if (!documentId || !user) return
+
     try {
+      setIsLoading(true)
       const response = await fetch(`/api/documents/${documentId}/revoke`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify({
+          targetUserId: user.userId
+        })
       })
 
       if (!response.ok) {
@@ -45,14 +50,12 @@ export function RevokeAccessDialog({
 
       toast({
         title: "Access Revoked",
-        description: `Revoked edit access for ${userName}`,
+        description: `Successfully revoked edit access for ${user.userName}`,
       })
-      
-      // Don't refresh the page, just close the dialog
-      setIsOpen(false)
-      // Call onRevoked to update UI state if needed
-      onRevoked()
+
+      onOpenChange(false)
     } catch (error) {
+      console.error('Failed to revoke access:', error)
       toast({
         title: "Error",
         description: "Failed to revoke access",
@@ -64,39 +67,44 @@ export function RevokeAccessDialog({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          variant="destructive" 
-          size="sm"
-          className="w-full mt-2"
-        >
-          Revoke Access
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Revoke Access</DialogTitle>
+          <DialogTitle>Revoke Edit Access</DialogTitle>
           <DialogDescription>
-            Are you sure you want to revoke edit access for {userName}? 
-            They will still be able to view the document but won't be able to make changes.
+            {user ? (
+              <>
+                Are you sure you want to revoke edit access for <strong>{user.userName}</strong>?
+                They will still be able to view the document.
+              </>
+            ) : (
+              "Are you sure you want to revoke edit access? They will still be able to view the document."
+            )}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
+        <div className="flex justify-end gap-3">
           <Button
             variant="outline"
-            onClick={() => setIsOpen(false)}
+            onClick={() => onOpenChange(false)}
+            disabled={isLoading}
           >
             Cancel
           </Button>
           <Button
             variant="destructive"
-            onClick={handleRevoke}
+            onClick={handleRevokeAccess}
             disabled={isLoading}
           >
-            {isLoading ? "Revoking..." : "Revoke Access"}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Revoking...
+              </>
+            ) : (
+              'Revoke Access'
+            )}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )

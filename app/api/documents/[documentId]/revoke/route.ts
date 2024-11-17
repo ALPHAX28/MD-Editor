@@ -1,6 +1,6 @@
-import { prisma } from '@/lib/prisma'
-import { auth } from '@clerk/nextjs'
 import { NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs'
+import { prisma } from '@/lib/prisma'
 import { supabase } from '@/lib/supabase'
 
 export async function POST(
@@ -10,63 +10,69 @@ export async function POST(
   try {
     const { userId } = auth()
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { userId: targetUserId } = await req.json()
+    const { targetUserId } = await req.json()
 
-    // First check if the document belongs to the user
+    // Verify document ownership
     const document = await prisma.document.findUnique({
-      where: { id: params.documentId },
+      where: {
+        id: params.documentId,
+        userId: userId // Only document owner can revoke access
+      },
       include: {
         sharedWith: true
       }
     })
 
     if (!document) {
-      return new NextResponse('Document not found', { status: 404 })
+      return NextResponse.json({ error: "Document not found or unauthorized" }, { status: 404 })
     }
 
-    if (document.userId !== userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
+    // Update both the document and shared access to VIEW mode
+    await prisma.$transaction([
+      // Update the shared access record
+      prisma.sharedDocument.update({
+        where: {
+          documentId_userId: {
+            documentId: params.documentId,
+            userId: targetUserId
+          }
+        },
+        data: {
+          accessMode: 'VIEW'
+        }
+      }),
+      // Update the document's share mode
+      prisma.document.update({
+        where: {
+          id: params.documentId
+        },
+        data: {
+          shareMode: 'VIEW'
+        }
+      })
+    ])
 
-    // Update the shared user's access mode to VIEW
-    await prisma.sharedUser.updateMany({
-      where: {
-        documentId: params.documentId,
-        userId: targetUserId
-      },
-      data: { 
-        mode: 'VIEW'
-      }
-    })
-
-    // Update document's share mode for this user
-    await prisma.document.update({
-      where: { id: params.documentId },
-      data: {
-        shareMode: 'VIEW'
-      }
-    })
-
-    // Broadcast access revocation
-    const channel = supabase.channel(`document:${params.documentId}`)
-    await channel.send({
+    // Get user info for the notification
+    const targetShare = document.sharedWith.find(share => share.userId === targetUserId)
+    
+    // Notify the user through realtime
+    await supabase.channel(`document:${params.documentId}`).send({
       type: 'broadcast',
       event: 'access_revoked',
       payload: {
         documentId: params.documentId,
         targetUserId,
-        mode: 'VIEW',
-        userName: document.sharedWith.find(u => u.userId === targetUserId)?.userId || 'User',
+        userName: targetShare?.userId || 'User',
         forceReload: true
       }
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error revoking access:', error)
-    return new NextResponse('Internal error', { status: 500 })
+    console.error('[REVOKE_ACCESS_ERROR]', error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 } 
