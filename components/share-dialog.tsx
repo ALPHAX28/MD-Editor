@@ -34,21 +34,39 @@ export function ShareDialog({
   const [shareUrl, setShareUrl] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [isNewLink, setIsNewLink] = useState(false)
   const { toast } = useToast()
   const { isSignedIn } = useAuth()
 
   const canShare = Boolean(documentId) && isSignedIn
 
-  // Reset share URL when mode changes
+  // Reset states when dialog opens/closes
   useEffect(() => {
+    if (!isOpen) {
+      setShareUrl("")
+      setShowSuccess(false)
+      setIsNewLink(false)
+    }
+  }, [isOpen])
+
+  // Reset link when mode changes
+  const handleModeChange = (value: string) => {
+    setShareMode(value as "view" | "edit")
     setShareUrl("")
-  }, [shareMode])
+    setShowSuccess(false)
+    setIsNewLink(false)
+  }
 
   const handleShare = async () => {
     try {
       setIsLoading(true)
+      setShowSuccess(false)
       const url = await onShare(shareMode)
       setShareUrl(url)
+      setIsNewLink(Boolean(shareUrl))
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 3000)
     } catch (error) {
       toast({
         title: "Error",
@@ -95,7 +113,7 @@ export function ShareDialog({
             <>
               <RadioGroup
                 value={shareMode}
-                onValueChange={(value: string) => setShareMode(value as "view" | "edit")}
+                onValueChange={handleModeChange}
                 className="gap-4"
               >
                 <div className="flex items-center space-x-2">
@@ -126,10 +144,12 @@ export function ShareDialog({
 
               {shareUrl ? (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-green-600 dark:text-green-500">
-                    <Check className="h-4 w-4" />
-                    Link generated successfully ({shareMode} access)
-                  </div>
+                  {showSuccess && (
+                    <div className="flex items-center gap-2 text-sm font-medium text-green-500">
+                      <Check className="h-4 w-4" />
+                      {isNewLink ? 'New link generated successfully' : 'Link generated successfully'}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <Input
                       value={shareUrl}

@@ -14,32 +14,22 @@ export function useAutosave(
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const { toast } = useToast()
 
-  // Load initial content
+  // Reset save status when switching to view mode
   useEffect(() => {
-    if (documentId) {
-      const loadContent = async () => {
-        try {
-          const response = await fetch(`/api/documents/${documentId}`)
-          if (!response.ok) throw new Error('Failed to load document')
-          const data = await response.json()
-          setContent(data.content || '')
-        } catch (error) {
-          console.error('Error loading document:', error)
-          toast({
-            title: "Error",
-            description: "Failed to load document",
-            variant: "destructive"
-          })
-        }
-      }
-      loadContent()
+    if (isShared && shareMode === 'view') {
+      setSaveStatus('saved')
     }
-  }, [documentId])
+  }, [isShared, shareMode])
 
   const saveContent = useCallback(async () => {
-    if (!documentId || (isShared && shareMode === 'view')) return
+    // Don't attempt to save if in view mode
+    if (!documentId || (isShared && shareMode === 'view')) {
+      setSaveStatus('saved')
+      return
+    }
 
     setSaveStatus('saving')
+
     try {
       const response = await fetch(`/api/documents/${documentId}`, {
         method: 'PATCH',
@@ -48,7 +38,7 @@ export function useAutosave(
         },
         body: JSON.stringify({ 
           content,
-          isAutosave: false
+          isAutosave: true
         }),
       })
 
@@ -57,11 +47,6 @@ export function useAutosave(
       }
 
       const savedDoc = await response.json()
-      console.log('Document saved:', {
-        id: savedDoc.id,
-        content: savedDoc.content?.substring(0, 50) + '...'
-      })
-
       setLastSaved(new Date())
       setSaveStatus('saved')
     } catch (error) {
@@ -75,14 +60,54 @@ export function useAutosave(
     }
   }, [content, documentId, isShared, shareMode])
 
-  // Save immediately when content changes
+  // Save when content changes
   useEffect(() => {
-    if (!content || !documentId) return
-    saveContent()
-  }, [content, saveContent, documentId])
+    // Don't set up autosave if in view mode
+    if (!content || !documentId || (isShared && shareMode === 'view')) {
+      return
+    }
 
-  // Save before unloading
+    setSaveStatus('saving')
+    
+    const timeoutId = setTimeout(() => {
+      saveContent()
+    }, 1000)
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [content, documentId, saveContent, isShared, shareMode])
+
+  // Load initial content
   useEffect(() => {
+    if (documentId) {
+      const loadContent = async () => {
+        try {
+          const response = await fetch(`/api/documents/${documentId}`)
+          if (!response.ok) throw new Error('Failed to load document')
+          const data = await response.json()
+          setContent(data.content || '')
+          // Set status to saved after loading content in view mode
+          if (isShared && shareMode === 'view') {
+            setSaveStatus('saved')
+          }
+        } catch (error) {
+          console.error('Error loading document:', error)
+          toast({
+            title: "Error",
+            description: "Failed to load document",
+            variant: "destructive"
+          })
+        }
+      }
+      loadContent()
+    }
+  }, [documentId, isShared, shareMode])
+
+  // Save before unloading - only if not in view mode
+  useEffect(() => {
+    if (isShared && shareMode === 'view') return
+
     const handleBeforeUnload = () => {
       if (content && documentId) {
         saveContent()
@@ -91,13 +116,13 @@ export function useAutosave(
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [content, documentId, saveContent])
+  }, [content, documentId, saveContent, isShared, shareMode])
 
   return {
     content,
     setContent,
     lastSaved,
-    saveStatus,
+    saveStatus: (isShared && shareMode === 'view') ? undefined : saveStatus,
     setLastSaved,
     setSaveStatus
   }
