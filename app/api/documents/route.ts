@@ -1,29 +1,21 @@
-import { auth } from '@clerk/nextjs'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { auth } from '@clerk/nextjs'
 
 export async function GET() {
   try {
     const { userId } = auth()
+    
     if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const documents = await prisma.document.findMany({
-      where: {
-        userId,
-        isAutosave: false,
-        isArchived: false,
-      },
-      orderBy: {
-        updatedAt: 'desc'
-      }
-    })
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/supabase`)
+    const data = await response.json()
 
-    return NextResponse.json(documents)
+    return NextResponse.json(data)
   } catch (error) {
-    console.error("[DOCUMENTS_GET]", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    console.error('API route error:', error)
+    return new NextResponse('Internal Error', { status: 500 })
   }
 }
 
