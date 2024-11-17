@@ -41,6 +41,10 @@ import { ShareDialog } from "@/components/share-dialog"
 import { cn } from "@/lib/utils"
 import { useLocalStorage } from '@/hooks/use-local-storage'
 import { AuthDialog } from "@/components/auth/auth-dialog"
+import { useRealtime } from '@/hooks/use-realtime'
+import { CursorPresence } from '@/components/cursor-presence'
+import { UsersOnline } from '@/components/users-online'
+import { ActiveUsers } from '@/components/active-users'
 
 interface CodeProps {
   node?: unknown;
@@ -110,6 +114,20 @@ export function MarkdownEditor({
   const [localTheme, setLocalTheme] = useLocalStorage('md-editor-theme', 'dark')
 
   const isReadOnly = isShared && shareMode === 'view'
+
+  const { cursors, selections, content: realtimeContent, updateCursor, updateContent, isChannelReady, presenceState } = useRealtime(
+    documentId || activeDocumentId || ''
+  )
+
+  useEffect(() => {
+    console.log('Editor mounted with:', {
+      documentId,
+      pathId: window?.location?.pathname?.split('/shared/').pop(),
+      isShared,
+      shareMode,
+      user: user?.id
+    })
+  }, [documentId, isShared, shareMode, user])
 
   useEffect(() => {
     if (localTheme === 'dark') {
@@ -538,35 +556,16 @@ ${previewContent}
   }
 
   useEffect(() => {
-    if (!activeDocumentId || !content) return;
-
-    const saveDocument = async () => {
-      try {
-        const response = await fetch(`/api/documents/${activeDocumentId}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content }),
-        });
-
-        if (!response.ok) throw new Error('Failed to save document');
-        
-        // Update the documents list with the new content
-        setDocuments(prev => prev.map(doc => 
-          doc.id === activeDocumentId 
-            ? { ...doc, content } 
-            : doc
-        ));
-      } catch (error) {
-        console.error('Error saving document:', error);
-      }
-    };
-
-    // Debounce the save operation
-    const timeoutId = setTimeout(saveDocument, 1000);
-    return () => clearTimeout(timeoutId);
-  }, [content, activeDocumentId]);
+    if (realtimeContent) {
+      console.log('Received realtime content:', {
+        content: realtimeContent,
+        documentId,
+        isShared,
+        shareMode
+      })
+      setContent(realtimeContent)
+    }
+  }, [realtimeContent])
 
   // Add this helper function to get current document title
   const getCurrentDocumentTitle = () => {
@@ -757,6 +756,90 @@ ${previewContent}
     setLocalTheme(newTheme)
   }
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    if (isReadOnly) return
+
+    const textarea = e.currentTarget
+    const rect = textarea.getBoundingClientRect()
+    
+    updateCursor({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      isTextCursor: false,
+      selection: {
+        start: textarea.selectionStart,
+        end: textarea.selectionEnd,
+        text: '',
+        line: 0,
+        column: 0
+      }
+    })
+  }
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!isReadOnly) {
+      const newContent = e.target.value
+      setContent(newContent)
+      
+      if (isChannelReady) {
+        console.log('Broadcasting content update:', {
+          content: newContent,
+          documentId: documentId || activeDocumentId,
+          isShared,
+          shareMode,
+          isChannelReady
+        })
+        updateContent(newContent)
+      }
+    }
+  }
+
+  useEffect(() => {
+    console.log('Channel status:', {
+      isChannelReady,
+      documentId: documentId || activeDocumentId,
+      isShared,
+      shareMode
+    })
+  }, [isChannelReady, documentId, activeDocumentId, isShared, shareMode])
+
+  const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    if (isReadOnly) return
+
+    const textarea = e.currentTarget
+    const selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)
+    
+    updateCursor({
+      x: 0,
+      y: 0,
+      isTextCursor: true,
+      selection: {
+        start: textarea.selectionStart,
+        end: textarea.selectionEnd,
+        text: selectedText,
+        line: 0,
+        column: 0
+      }
+    })
+  }
+
+  // Add this helper function to calculate selection position
+  const calculateSelectionPosition = (selection: Cursor['selection']) => {
+    const textarea = document.querySelector('textarea')
+    if (!textarea) return { top: 0, left: 0, width: 0 }
+
+    const text = textarea.value.substring(0, selection.start)
+    const lines = text.split('\n')
+    const lineNumber = lines.length - 1
+    const charPos = lines[lines.length - 1].length
+
+    return {
+      top: lineNumber * 1.5 + 1, // 1.5rem line height + 1rem padding
+      left: charPos * 0.6, // Approximate character width
+      width: (selection.end - selection.start) * 0.6 // Width based on selection length
+    }
+  }
+
   return (
     <div className="relative h-full">
       <div className="flex h-screen overflow-hidden">
@@ -784,17 +867,12 @@ ${previewContent}
               className="max-w-5xl mx-auto space-y-4"
             >
               <div className="flex flex-col gap-4 mb-6">
-                <div className="flex justify-between items-center">
-                  {/* Mobile Hamburger and Welcome Message */}
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="sm:hidden">
                       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
                         <SheetTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                          >
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
                             <Menu className="h-5 w-5" />
                           </Button>
                         </SheetTrigger>
@@ -813,14 +891,16 @@ ${previewContent}
                     </NextLink>
                   </div>
 
-                  {/* User Controls */}
                   <div className="flex items-center gap-2 shrink-0">
                     {isLoaded && (
                       <>
                         {isSignedIn ? (
-                          <UserButton 
-                            afterSignOutUrl={`${window?.location?.pathname}?reload=true`}
-                          />
+                          <div className="flex items-center gap-3">
+                            <ActiveUsers presenceState={presenceState} />
+                            <UserButton 
+                              afterSignOutUrl={`${window?.location?.pathname}?reload=true`}
+                            />
+                          </div>
                         ) : (
                           <div className="hidden sm:flex gap-2">
                             <Button 
@@ -857,35 +937,31 @@ ${previewContent}
                   </div>
                 </div>
                 
-                {/* Mobile Sign In/Up Buttons */}
-                {isLoaded && !isSignedIn && (
-                  <div className="flex sm:hidden gap-2 w-full">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => {
-                        setAuthMode("sign-in")
-                        setShowAuthDialog(true)
-                      }}
-                    >
-                      Sign in
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => {
-                        setAuthMode("sign-up")
-                        setShowAuthDialog(true)
-                      }}
-                    >
-                      Sign up
-                    </Button>
-                  </div>
-                )}
+                <div className="flex sm:hidden gap-2 w-full">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => {
+                      setAuthMode("sign-in")
+                      setShowAuthDialog(true)
+                    }}
+                  >
+                    Sign in
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => {
+                      setAuthMode("sign-up")
+                      setShowAuthDialog(true)
+                    }}
+                  >
+                    Sign up
+                  </Button>
+                </div>
 
-                {/* Export Buttons */}
                 <div className="flex gap-2 overflow-x-auto">
                   <Button
                     variant="outline"
@@ -1196,16 +1272,55 @@ ${previewContent}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
                       >
-                        <textarea
-                          value={content}
-                          onChange={(e) => !isReadOnly && setContent(e.target.value)}
-                          className={cn(
-                            "w-full min-h-[600px] p-4 font-mono text-sm bg-background dark:bg-gray-800 dark:text-white resize-none focus:outline-none",
-                            isReadOnly && "cursor-not-allowed opacity-50"
-                          )}
-                          placeholder={isReadOnly ? "This document is view-only" : "Start writing..."}
-                          readOnly={isReadOnly}
-                        />
+                        <div className="relative">
+                          <textarea
+                            value={content}
+                            onChange={handleContentChange}
+                            onMouseMove={handleMouseMove}
+                            onSelect={handleSelect}
+                            className={cn(
+                              "w-full min-h-[600px] p-4 font-mono text-sm resize-none focus:outline-none",
+                              "bg-background dark:bg-gray-800 dark:text-white",
+                              isReadOnly && "cursor-not-allowed opacity-50"
+                            )}
+                            placeholder={isReadOnly ? "This document is view-only" : "Start writing..."}
+                            readOnly={isReadOnly}
+                          />
+                          
+                          {/* Show remote cursors and selections */}
+                          {Array.from(cursors.values()).map((cursor) => (
+                            <div key={cursor.userId}>
+                              {/* Cursor */}
+                              <CursorPresence cursor={cursor} />
+                              
+                              {/* Selection highlight */}
+                              {cursor.selection && cursor.selection.text && (
+                                <div
+                                  className="absolute pointer-events-none"
+                                  style={{
+                                    top: `${calculateSelectionPosition(cursor.selection).top}rem`,
+                                    left: `${calculateSelectionPosition(cursor.selection).left}rem`,
+                                    height: '1.5rem',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.2)', // blue-500 with opacity
+                                    width: `${calculateSelectionPosition(cursor.selection).width}rem`,
+                                    transition: 'all 0.1s ease-out'
+                                  }}
+                                >
+                                  {/* Selection tooltip */}
+                                  <div 
+                                    className="absolute left-0 -top-6 bg-blue-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap"
+                                    style={{ transform: 'translateY(-4px)' }}
+                                  >
+                                    {cursor.userName} selected: {cursor.selection.text.length > 20 
+                                      ? cursor.selection.text.substring(0, 20) + '...' 
+                                      : cursor.selection.text
+                                    }
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </motion.div>
                     </TabsContent>
                     
