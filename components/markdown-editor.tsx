@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -46,6 +46,7 @@ import { CursorPresence } from '@/components/cursor-presence'
 import { UsersOnline } from '@/components/users-online'
 import { ActiveUsers } from '@/components/active-users'
 import { Cursor } from '@/hooks/use-realtime'
+import { supabase } from '@/lib/supabase'
 
 interface CodeProps {
   node?: unknown;
@@ -854,6 +855,44 @@ ${previewContent}
   useEffect(() => {
     setPathname(window.location.pathname)
   }, [])
+
+  useEffect(() => {
+    if (!isLoaded) {
+      console.log('Waiting for auth to load...')
+      return
+    }
+
+    if (!documentId) {
+      console.error('No document ID provided for realtime')
+      return
+    }
+
+    const channelName = `document:${documentId}`
+    const channel = supabase.channel(channelName, {
+      config: {
+        broadcast: { self: true, ack: true },
+        presence: { key: userId || 'anonymous' }
+      }
+    })
+
+    channel
+      .on('broadcast', { event: 'access_revoked' }, ({ payload }) => {
+        if (payload.targetUserId === userId) {
+          toast({
+            title: "Access Revoked",
+            description: "Your edit access has been revoked. The page will refresh.",
+            variant: "destructive",
+          })
+          
+          // Give user time to see the toast before refresh
+          setTimeout(() => {
+            window.location.reload()
+          }, 2000)
+        }
+      })
+
+    // ... rest of the realtime setup ...
+  }, [documentId, userId, isLoaded])
 
   return (
     <div className="relative h-full">

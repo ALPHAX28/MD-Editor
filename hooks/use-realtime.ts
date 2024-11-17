@@ -50,7 +50,7 @@ export function useRealtime(documentId: string, shareMode?: string) {
     const channelName = `document:${documentId}`
     const channel = supabase.channel(channelName, {
       config: {
-        broadcast: { self: false, ack: true },
+        broadcast: { self: true, ack: true },
         presence: { key: userId || 'anonymous' }
       }
     })
@@ -97,6 +97,21 @@ export function useRealtime(documentId: string, shareMode?: string) {
           return next
         })
       })
+      .on('broadcast', { event: 'access_revoked' }, ({ payload }) => {
+        console.log('Received access_revoked event:', payload)
+        if (payload.targetUserId === userId) {
+          toast({
+            title: "Access Revoked",
+            description: "Your edit access has been revoked. The page will refresh.",
+            variant: "destructive",
+          })
+          
+          setTimeout(() => {
+            window.location.href = '/editor'
+            window.location.reload(true)
+          }, 1500)
+        }
+      })
 
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
@@ -117,6 +132,7 @@ export function useRealtime(documentId: string, shareMode?: string) {
 
     return () => {
       if (channelRef.current) {
+        console.log('Cleaning up channel subscription')
         setIsChannelReady(false)
         channelRef.current.unsubscribe()
         channelRef.current = null

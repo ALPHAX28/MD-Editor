@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { Presence } from "@/hooks/use-realtime"
+import { supabase } from '@/lib/supabase'
 
 interface RevokeAccessDialogProps {
   isOpen: boolean
@@ -34,6 +35,24 @@ export function RevokeAccessDialog({
 
     try {
       setIsLoading(true)
+      
+      // First broadcast the revocation event
+      const channel = supabase.channel(`document:${documentId}`)
+      await channel.subscribe()
+      
+      const broadcastResult = await channel.send({
+        type: 'broadcast',
+        event: 'access_revoked',
+        payload: {
+          targetUserId: user.userId,
+          documentId,
+          timestamp: new Date().toISOString()
+        }
+      })
+
+      console.log('Broadcast result:', broadcastResult) // Debug log
+
+      // Then revoke access in the database
       const response = await fetch(`/api/documents/${documentId}/revoke`, {
         method: 'POST',
         headers: {
@@ -54,6 +73,10 @@ export function RevokeAccessDialog({
       })
 
       onOpenChange(false)
+      
+      // Clean up the channel
+      await channel.unsubscribe()
+      
     } catch (error) {
       console.error('Failed to revoke access:', error)
       toast({
