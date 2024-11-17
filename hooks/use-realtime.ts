@@ -108,7 +108,7 @@ export function useRealtime(documentId: string, shareMode?: string) {
           
           setTimeout(() => {
             window.location.href = '/editor'
-            window.location.reload(true)
+            window.location.reload()
           }, 1500)
         }
       })

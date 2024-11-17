@@ -6,7 +6,30 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Bold, Italic, Underline, List, Image as ImageIcon, Link as LinkIcon, Table, FileDown, Code, Quote, Heading1, Heading2, Heading3, CheckSquare, Strikethrough, Moon, Sun, Loader2, Copy, Check, Menu, Share } from 'lucide-react'
+import { 
+  Bold, 
+  Italic, 
+  Underline, 
+  List, 
+  Image as ImageIcon, 
+  Link as LinkIcon, 
+  Table, 
+  FileDown, 
+  Code, 
+  Quote, 
+  Heading1, 
+  Heading2, 
+  Heading3, 
+  Square, 
+  Strikethrough, 
+  Moon, 
+  Sun, 
+  Loader, 
+  Copy, 
+  Check, 
+  Menu, 
+  Share 
+} from 'lucide-react'
 import { saveAs } from 'file-saver'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -877,6 +900,7 @@ ${previewContent}
 
     channel
       .on('broadcast', { event: 'access_revoked' }, ({ payload }) => {
+        console.log('Received access_revoked event:', payload)
         if (payload.targetUserId === userId) {
           toast({
             title: "Access Revoked",
@@ -884,15 +908,16 @@ ${previewContent}
             variant: "destructive",
           })
           
-          // Give user time to see the toast before refresh
+          // Modified reload logic
           setTimeout(() => {
-            window.location.reload()
-          }, 2000)
+            window.location.href = '/editor'
+            window.location.reload() // Removed the parameter
+          }, 1500)
         }
       })
 
     // ... rest of the realtime setup ...
-  }, [documentId, userId, isLoaded])
+  }, [documentId, userId, isLoaded, shareMode, toast])
 
   return (
     <div className="relative h-full">
@@ -1031,7 +1056,7 @@ ${previewContent}
                   >
                     {isPdfExporting ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Loader className="h-4 w-4 mr-2 animate-spin" />
                         <span className="sm:inline">PDF</span>
                       </>
                     ) : (
@@ -1051,7 +1076,7 @@ ${previewContent}
                   >
                     {isWordExporting ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Loader className="h-4 w-4 mr-2 animate-spin" />
                         <span className="sm:inline">Word</span>
                       </>
                     ) : (
@@ -1071,7 +1096,7 @@ ${previewContent}
                   >
                     {isHtmlExporting ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Loader className="h-4 w-4 mr-2 animate-spin" />
                         <span className="sm:inline">HTML</span>
                       </>
                     ) : (
@@ -1190,7 +1215,7 @@ ${previewContent}
                       onClick={() => insertAtCursor('- [ ] ')}
                       title="Task List"
                     >
-                      <CheckSquare className="h-4 w-4" />
+                      <Square className="h-4 w-4" />
                     </Button>
                     <Button 
                       variant="ghost" 
