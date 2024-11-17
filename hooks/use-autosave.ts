@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useToast } from './use-toast'
 
+export type SaveStatus = 'saved' | 'saving' | 'error'
+
 export function useAutosave(
   documentId: string | undefined,
   initialContent: string = '',
@@ -9,7 +11,7 @@ export function useAutosave(
 ) {
   const [content, setContent] = useState(initialContent)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved')
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const { toast } = useToast()
 
   // Load initial content
