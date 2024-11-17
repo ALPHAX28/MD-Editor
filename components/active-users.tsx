@@ -13,6 +13,7 @@ import { RevokeAccessDialog } from "./revoke-access-dialog"
 import { useState } from "react"
 import { Presence } from "@/hooks/use-realtime"
 import { useUser } from "@clerk/nextjs"
+import { cn } from "@/lib/utils"
 
 interface ActiveUsersProps {
   presenceState: Record<string, Presence[]>
@@ -31,17 +32,20 @@ export function ActiveUsers({
   const [showRevokeDialog, setShowRevokeDialog] = useState(false)
   const { user } = useUser()
 
-  // Get all active users
-  const activeUsers = Object.values(presenceState).flat().filter(p => p.userName)
-  const hasMultipleUsers = activeUsers.length > 1
+  // Get all active users and filter out duplicates
+  const activeUsers = Object.values(presenceState)
+    .flat()
+    .filter((p, index, self) => 
+      p.userId && self.findIndex(s => s.userId === p.userId) === index
+    )
 
   // If there's only one user (current user) and no other participants, don't show anything
-  if (!hasMultipleUsers) {
+  if (activeUsers.length <= 1) {
     return null
   }
 
   const getInitial = (name: string) => {
-    return name.charAt(0).toUpperCase()
+    return name?.charAt(0).toUpperCase() || '?'
   }
 
   const getUserColor = (userId: string) => {
@@ -72,20 +76,15 @@ export function ActiveUsers({
     const isCurrentUser = user && presenceUser.userId === user.id
     const userColor = getUserColor(presenceUser.userId)
 
-    if (isCurrentUser) {
-      return (
-        <Avatar className="h-8 w-8 border-2 border-background">
-          <AvatarImage src={user.imageUrl} />
-          <AvatarFallback className={`${userColor} text-white`}>
-            {getInitial(presenceUser.userName)}
-          </AvatarFallback>
-        </Avatar>
-      )
-    }
-
     return (
-      <Avatar className={`h-8 w-8 border-2 border-background ${userColor}`}>
-        <AvatarFallback className={`${userColor} text-white`}>
+      <Avatar className={cn(
+        "h-8 w-8 ring-0 border-0",
+        isCurrentUser && "ring-0"
+      )}>
+        {isCurrentUser ? (
+          <AvatarImage src={user.imageUrl} className="ring-0 border-0" />
+        ) : null}
+        <AvatarFallback className={`${userColor} ring-0 border-0`}>
           {getInitial(presenceUser.userName)}
         </AvatarFallback>
       </Avatar>
@@ -104,7 +103,7 @@ export function ActiveUsers({
                     initial={{ scale: 0, opacity: 0, x: -20 }}
                     animate={{ scale: 1, opacity: 1, x: 0 }}
                     exit={{ scale: 0, opacity: 0, x: 20 }}
-                    className="relative inline-block"
+                    className="relative inline-block cursor-pointer ring-0 border-0"
                   >
                     {renderAvatar(presenceUser)}
                   </motion.div>

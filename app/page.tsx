@@ -28,8 +28,8 @@ export default function LandingPage() {
     "Syntax highlighting",
     "Table support",
     "Task lists",
-    "Auto-save feature (Now Live! 🎉)",
-    "Collaborative editing (coming soon)"
+    "Auto-save feature",
+    "Collaborative editing (Now Live! 🎉)"
   ]
 
   return (
@@ -94,7 +94,7 @@ export default function LandingPage() {
             >
               Write, preview, and export your markdown documents with ease.
               <span className="block text-green-500 font-semibold mt-2">
-                Now with Auto-Save! Never lose your work again. 🚀
+                Real-time collaboration with multiple users. Work together seamlessly! 👥
               </span>
             </motion.p>
             <motion.div
@@ -112,7 +112,7 @@ export default function LandingPage() {
               <motion.div
                 key={feature}
                 className={`p-6 rounded-lg border bg-card ${
-                  feature.includes('Auto-save feature (Now Live!')
+                  feature.includes('Collaborative editing')
                     ? 'border-green-500 dark:border-green-400'
                     : ''
                 }`}
@@ -121,11 +121,7 @@ export default function LandingPage() {
                 transition={{ duration: 0.5, delay: index * 0.1 }}
               >
                 <div className="flex items-center gap-2">
-                  <Check className={`h-5 w-5 ${
-                    feature.includes('Auto-save feature (Now Live!')
-                      ? 'text-green-500'
-                      : 'text-green-500'
-                  }`} />
+                  <Check className="h-5 w-5 text-green-500" />
                   <span>{feature}</span>
                 </div>
               </motion.div>

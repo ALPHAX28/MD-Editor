@@ -48,22 +48,10 @@ export function useRealtime(documentId: string, shareMode?: string) {
     }
 
     const channelName = `document:${documentId}`
-    console.log('Initializing realtime:', {
-      channelName,
-      documentId,
-      userId,
-      path: window.location.pathname
-    })
-
     const channel = supabase.channel(channelName, {
       config: {
-        broadcast: {
-          self: false,
-          ack: true
-        },
-        presence: {
-          key: userId || 'anonymous'
-        }
+        broadcast: { self: false, ack: true },
+        presence: { key: userId || 'anonymous' }
       }
     })
 
@@ -71,29 +59,13 @@ export function useRealtime(documentId: string, shareMode?: string) {
 
     channel
       .on('broadcast', { event: 'content' }, ({ payload }) => {
-        console.log('Received content broadcast:', {
-          payload,
-          currentUserId: userId,
-          documentId
-        })
         setContent(payload.content)
       })
       .on('broadcast', { event: 'cursor' }, ({ payload }) => {
-        console.log('Received cursor broadcast:', {
-          payload,
-          currentUserId: userId,
-          documentId
-        })
         if (payload.userId !== userId) {
           setCursors(prev => {
             const newCursors = new Map(prev)
-            newCursors.set(payload.userId, {
-              ...payload,
-              selection: payload.selection ? {
-                ...payload.selection,
-                text: payload.selection.text || ''
-              } : null
-            })
+            newCursors.set(payload.userId, payload)
             return newCursors
           })
         }
@@ -101,89 +73,56 @@ export function useRealtime(documentId: string, shareMode?: string) {
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState<Presence>()
         setPresenceState(state)
-        
-        // Update cursors based on presence state
-        const newCursors = new Map()
-        Object.values(state).flat().forEach(presence => {
-          if (presence.cursor && presence.userId !== userId) {
-            newCursors.set(presence.userId, presence.cursor)
-          }
-        })
-        setCursors(newCursors)
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        console.log('User joined:', key, newPresences)
+        if (key !== userId) {
+          toast({
+            title: "User joined",
+            description: `${newPresences[0].userName} has joined the session`,
+            duration: 3000,
+          })
+        }
       })
       .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        console.log('User left:', key, leftPresences)
-        // Remove cursor when user leaves
+        if (key !== userId) {
+          toast({
+            title: "User left",
+            description: `${leftPresences[0].userName} has left the session`,
+            duration: 3000,
+          })
+        }
         setCursors(prev => {
           const next = new Map(prev)
           next.delete(key)
           return next
         })
       })
-      .on('broadcast', { event: 'access_revoked' }, ({ payload }) => {
-        console.log('Access revoked:', payload)
-        if (payload.targetUserId === userId) {
-          toast({
-            title: "Access Revoked",
-            description: "Your edit access has been revoked. You can now only view this document.",
-            variant: "destructive",
-          })
-
-          // Force reload to get new permissions
-          window.location.reload()
-        }
-      })
 
     channel.subscribe(async (status) => {
-      console.log('Channel subscription:', {
-        status,
-        channelName,
-        documentId,
-        userId,
-        shareMode
-      })
-      
       if (status === 'SUBSCRIBED') {
         setIsChannelReady(true)
-        console.log('Channel ready:', {
-          channelName,
-          documentId,
-          userId,
-          shareMode
-        })
         
-        if (userId) {
-          try {
-            await channel.track({
-              userId,
-              userName: user?.fullName || user?.username || 'Anonymous',
-              cursor: null,
-              accessMode: shareMode
-            })
-            console.log('Presence tracked for:', userId)
-          } catch (error) {
-            console.error('Failed to track presence:', error)
-          }
+        // Track presence when subscribed
+        if (userId && user) {
+          await channel.track({
+            userId: userId,
+            userName: user.fullName || user.username || 'Anonymous',
+            cursor: null,
+            accessMode: shareMode,
+            imageUrl: user.imageUrl // Add user's image URL
+          })
         }
       }
     })
 
     return () => {
-      console.log('Cleaning up channel:', {
-        channelName,
-        documentId,
-        userId
-      })
       if (channelRef.current) {
         setIsChannelReady(false)
         channelRef.current.unsubscribe()
         channelRef.current = null
       }
     }
-  }, [documentId, userId, user, isLoaded, shareMode])
+  }, [documentId, userId, user, isLoaded, shareMode, toast])
 
   const updateCursor = async (cursor: Omit<Cursor, 'userId' | 'userName'>) => {
     if (!documentId || !user || !channelRef.current || !userId) return
