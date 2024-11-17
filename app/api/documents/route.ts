@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 export async function GET() {
   try {
@@ -10,8 +10,15 @@ export async function GET() {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/supabase`)
-    const data = await response.json()
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Supabase error:', error)
+      return new NextResponse('Database Error', { status: 500 })
+    }
 
     return NextResponse.json(data)
   } catch (error) {
@@ -29,16 +36,25 @@ export async function POST(req: Request) {
 
     const { title, content } = await req.json()
 
-    const document = await prisma.document.create({
-      data: {
-        title,
-        content: content || '',
-        userId,
-        isAutosave: false,
-      }
-    })
+    const { data, error } = await supabase
+      .from('documents')
+      .insert([
+        {
+          title,
+          content: content || '',
+          user_id: userId,
+          is_autosave: false,
+        }
+      ])
+      .select()
+      .single()
 
-    return NextResponse.json(document)
+    if (error) {
+      console.error('Supabase error:', error)
+      return NextResponse.json({ error: "Database Error" }, { status: 500 })
+    }
+
+    return NextResponse.json(data)
   } catch (error) {
     console.error("[DOCUMENTS_POST]", error)
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
