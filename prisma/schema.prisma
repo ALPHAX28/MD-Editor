@@ -24,6 +24,7 @@ model Document {
   shareMode ShareMode @default(PRIVATE)
   shareToken String? @unique
   sharedWith SharedUser[]
+  sharedUsers Json?
 
   @@index([userId])
   @@map("documents")

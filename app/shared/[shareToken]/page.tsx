@@ -15,11 +15,8 @@ export default async function SharedDocumentPage({
   
   const document = await prisma.document.findUnique({
     where: { shareToken: params.shareToken },
-    select: {
-      id: true,
-      content: true,
-      title: true,
-      shareMode: true
+    include: {
+      sharedWith: true  // Include shared users
     }
   })
 
@@ -27,8 +24,17 @@ export default async function SharedDocumentPage({
     redirect('/404')
   }
 
+  // Get user's specific access mode from SharedUser table
+  let userAccessMode = document.shareMode
+  if (user) {
+    const sharedUser = document.sharedWith.find(su => su.userId === user.id)
+    if (sharedUser) {
+      userAccessMode = sharedUser.mode
+    }
+  }
+
   // For edit mode, require authentication
-  if (document.shareMode === 'EDIT' && !user) {
+  if (userAccessMode === 'EDIT' && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-full max-w-[400px] mx-4 p-6 rounded-lg border bg-card shadow-sm">
@@ -128,12 +134,11 @@ export default async function SharedDocumentPage({
     )
   }
 
-  // For view mode, allow both authenticated and unauthenticated users
   return (
     <MarkdownEditor 
       documentId={document.id}
       isShared={true}
-      shareMode={document.shareMode.toLowerCase()}
+      shareMode={userAccessMode.toLowerCase()}
       initialContent={document.content}
       title={document.title}
     />

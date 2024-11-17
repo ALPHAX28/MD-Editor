@@ -116,8 +116,16 @@ export function MarkdownEditor({
 
   const isReadOnly = isShared && shareMode === 'view'
 
-  const { cursors, selections, content: realtimeContent, updateCursor, updateContent, isChannelReady, presenceState } = useRealtime(
-    documentId || activeDocumentId || ''
+  const { 
+    cursors, 
+    content: realtimeContent, 
+    updateCursor, 
+    updateContent, 
+    isChannelReady,
+    presenceState 
+  } = useRealtime(
+    documentId || activeDocumentId || '',
+    shareMode
   )
 
   useEffect(() => {
@@ -897,7 +905,12 @@ ${previewContent}
                       <>
                         {isSignedIn ? (
                           <div className="flex items-center gap-3">
-                            <ActiveUsers presenceState={presenceState} />
+                            <ActiveUsers 
+                              presenceState={presenceState} 
+                              documentId={documentId || activeDocumentId} 
+                              isOwner={isSignedIn && !isShared && !!user}
+                              shareMode={shareMode}
+                            />
                             <UserButton 
                               afterSignOutUrl={`${window?.location?.pathname}?reload=true`}
                             />

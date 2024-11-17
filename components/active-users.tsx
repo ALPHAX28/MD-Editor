@@ -2,75 +2,125 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Presence } from '@/hooks/use-realtime'
 import { useState } from 'react'
 import { useUser } from '@clerk/nextjs'
+import { RevokeAccessDialog } from './revoke-access-dialog'
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
+import { Badge } from './ui/badge'
 
 interface ActiveUsersProps {
   presenceState: Record<string, Presence[]>
+  documentId?: string
+  isOwner?: boolean
+  shareMode?: string
 }
 
-export function ActiveUsers({ presenceState }: ActiveUsersProps) {
+// Function to generate a unique color based on userId
+const getUserColor = (userId: string) => {
+  let hash = 0
+  for (let i = 0; i < userId.length; i++) {
+    hash = userId.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const h = hash % 360
+  return `hsl(${h}, 70%, 60%)`
+}
+
+export function ActiveUsers({ presenceState, documentId, isOwner, shareMode }: ActiveUsersProps) {
   const [showTooltip, setShowTooltip] = useState<string | null>(null)
   const users = Object.values(presenceState).flat()
   const MAX_VISIBLE_USERS = 5
-  const { user } = useUser()
+  const { user: currentUser } = useUser()
+
+  // Don't show anything if there's only one or no users
+  if (users.length <= 1) {
+    return null
+  }
 
   // Get user avatar URL
   const getUserAvatar = (userId: string) => {
-    // If it's the current user, use their avatar
-    if (user && user.id === userId) {
-      return user.imageUrl
+    if (currentUser && currentUser.id === userId) {
+      return currentUser.imageUrl
     }
-    // For other users, return undefined and let it fall back to initials
     return undefined
+  }
+
+  const handleRevoked = () => {
+    // Just update the UI state if needed
+  }
+
+  // Get user's actual access mode from presence state
+  const getUserAccessMode = (userId: string) => {
+    const userPresence = Object.values(presenceState)
+      .flat()
+      .find(presence => presence.userId === userId)
+    return userPresence?.accessMode || 'view'
   }
 
   return (
     <div className="flex items-center">
       <div className="flex -space-x-3">
         <AnimatePresence mode="popLayout">
-          {users.slice(0, MAX_VISIBLE_USERS).map((user) => (
-            <motion.div
-              key={user.userId}
-              initial={{ scale: 0, opacity: 0, x: -20 }}
-              animate={{ scale: 1, opacity: 1, x: 0 }}
-              exit={{ scale: 0, opacity: 0, x: -20 }}
-              className="relative first:ml-0"
-              style={{ zIndex: users.length }}
-              onMouseEnter={() => setShowTooltip(user.userId)}
-              onMouseLeave={() => setShowTooltip(null)}
-            >
-              <motion.div
-                className="h-8 w-8 rounded-full flex items-center justify-center border-2 border-background overflow-hidden bg-primary text-primary-foreground"
-                whileHover={{ scale: 1.1, zIndex: 50 }}
-                transition={{ duration: 0.2 }}
-              >
-                {getUserAvatar(user.userId) ? (
-                  <img 
-                    src={getUserAvatar(user.userId)} 
-                    alt={user.userName}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-sm font-medium">
-                    {user.userName?.charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </motion.div>
+          {users.slice(0, MAX_VISIBLE_USERS).map((presenceUser) => {
+            const userAccessMode = getUserAccessMode(presenceUser.userId)
+            const isEditing = userAccessMode === 'edit'
+            const userColor = getUserColor(presenceUser.userId)
 
-              {/* Tooltip */}
-              <AnimatePresence>
-                {showTooltip === user.userId && (
+            return (
+              <Popover key={presenceUser.userId}>
+                <PopoverTrigger asChild>
                   <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-black rounded text-white text-xs whitespace-nowrap z-50"
+                    initial={{ scale: 0, opacity: 0, x: -20 }}
+                    animate={{ scale: 1, opacity: 1, x: 0 }}
+                    exit={{ scale: 0, opacity: 0, x: -20 }}
+                    className="relative first:ml-0 cursor-pointer"
+                    style={{ zIndex: users.length }}
+                    onMouseEnter={() => setShowTooltip(presenceUser.userId)}
+                    onMouseLeave={() => setShowTooltip(null)}
                   >
-                    {user.userName}
+                    <motion.div
+                      className="h-8 w-8 rounded-full flex items-center justify-center border-2 border-background overflow-hidden text-white"
+                      style={{ backgroundColor: userColor }}
+                      whileHover={{ scale: 1.1, zIndex: 50 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {getUserAvatar(presenceUser.userId) ? (
+                        <img 
+                          src={getUserAvatar(presenceUser.userId)} 
+                          alt={presenceUser.userName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-sm font-medium">
+                          {presenceUser.userName?.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </motion.div>
                   </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          ))}
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">{presenceUser.userName}</div>
+                      <Badge 
+                        variant={isEditing ? 'default' : 'secondary'}
+                        className="ml-2"
+                      >
+                        {isEditing ? 'Editing' : 'Viewing'}
+                      </Badge>
+                    </div>
+                    {isOwner && documentId && currentUser && 
+                     presenceUser.userId !== currentUser.id && 
+                     isEditing && (
+                      <RevokeAccessDialog
+                        documentId={documentId}
+                        userId={presenceUser.userId}
+                        userName={presenceUser.userName}
+                        onRevoked={handleRevoked}
+                      />
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )
+          })}
 
           {/* Show count of additional users */}
           {users.length > MAX_VISIBLE_USERS && (

@@ -22,9 +22,10 @@ export interface Presence {
   userId: string
   userName: string
   cursor: Cursor | null
+  accessMode?: 'edit' | 'view'
 }
 
-export function useRealtime(documentId: string) {
+export function useRealtime(documentId: string, shareMode?: string) {
   const { isLoaded, isSignedIn, userId } = useAuth()
   const { user } = useUser()
   const [cursors, setCursors] = useState<Map<string, Cursor>>(new Map())
@@ -51,7 +52,6 @@ export function useRealtime(documentId: string) {
       channelName,
       documentId,
       userId,
-      isShared: window.location.pathname.includes('/shared/'),
       path: window.location.pathname
     })
 
@@ -77,10 +77,6 @@ export function useRealtime(documentId: string) {
           documentId
         })
         setContent(payload.content)
-        toast({
-          title: "Content Updated",
-          description: "Document was updated by another user",
-        })
       })
       .on('broadcast', { event: 'cursor' }, ({ payload }) => {
         console.log('Received cursor broadcast:', {
@@ -105,7 +101,50 @@ export function useRealtime(documentId: string) {
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState<Presence>()
         setPresenceState(state)
-        // ... rest of presence handling
+        
+        // Update cursors based on presence state
+        const newCursors = new Map()
+        Object.values(state).flat().forEach(presence => {
+          if (presence.cursor && presence.userId !== userId) {
+            newCursors.set(presence.userId, presence.cursor)
+          }
+        })
+        setCursors(newCursors)
+      })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        console.log('User joined:', key, newPresences)
+      })
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        console.log('User left:', key, leftPresences)
+        // Remove cursor when user leaves
+        setCursors(prev => {
+          const next = new Map(prev)
+          next.delete(key)
+          return next
+        })
+      })
+      .on('broadcast', { event: 'access_revoked' }, ({ payload }) => {
+        console.log('Access revoked:', payload)
+        if (payload.targetUserId === userId) {
+          toast({
+            title: "Access Revoked",
+            description: "Your edit access has been revoked. You can now only view this document.",
+            variant: "destructive",
+          })
+
+          // Force reload to get new permissions
+          if (payload.forceReload) {
+            setTimeout(() => {
+              window.location.reload()
+            }, 1000) // Give time for the toast to show
+          }
+        } else {
+          // For other users, just update the UI if needed
+          toast({
+            title: "Access Updated",
+            description: `${payload.userName}'s edit access has been revoked.`,
+          })
+        }
       })
 
     channel.subscribe(async (status) => {
@@ -113,7 +152,8 @@ export function useRealtime(documentId: string) {
         status,
         channelName,
         documentId,
-        userId
+        userId,
+        shareMode
       })
       
       if (status === 'SUBSCRIBED') {
@@ -121,7 +161,8 @@ export function useRealtime(documentId: string) {
         console.log('Channel ready:', {
           channelName,
           documentId,
-          userId
+          userId,
+          shareMode
         })
         
         if (userId) {
@@ -129,7 +170,8 @@ export function useRealtime(documentId: string) {
             await channel.track({
               userId,
               userName: user?.fullName || user?.username || 'Anonymous',
-              cursor: null
+              cursor: null,
+              accessMode: shareMode
             })
             console.log('Presence tracked for:', userId)
           } catch (error) {
@@ -151,7 +193,7 @@ export function useRealtime(documentId: string) {
         channelRef.current = null
       }
     }
-  }, [documentId, userId, user, isLoaded])
+  }, [documentId, userId, user, isLoaded, shareMode])
 
   const updateCursor = async (cursor: Omit<Cursor, 'userId' | 'userName'>) => {
     if (!documentId || !user || !channelRef.current || !userId) return
