@@ -45,6 +45,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { CursorPresence } from '@/components/cursor-presence'
 import { UsersOnline } from '@/components/users-online'
 import { ActiveUsers } from '@/components/active-users'
+import { Cursor } from '@/hooks/use-realtime'
 
 interface CodeProps {
   node?: unknown;
@@ -834,9 +835,9 @@ ${previewContent}
     const charPos = lines[lines.length - 1].length
 
     return {
-      top: lineNumber * 1.5 + 1, // 1.5rem line height + 1rem padding
-      left: charPos * 0.6, // Approximate character width
-      width: (selection.end - selection.start) * 0.6 // Width based on selection length
+      top: lineNumber * 1.5 + 1,
+      left: charPos * 0.6,
+      width: (selection.end - selection.start) * 0.6
     }
   }
 
