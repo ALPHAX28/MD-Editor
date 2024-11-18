@@ -1022,28 +1022,32 @@ ${previewContent}
                 </div>
                 
                 <div className="flex sm:hidden gap-2 w-full">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => {
-                      setAuthMode("sign-in")
-                      setShowAuthDialog(true)
-                    }}
-                  >
-                    Sign in
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => {
-                      setAuthMode("sign-up")
-                      setShowAuthDialog(true)
-                    }}
-                  >
-                    Sign up
-                  </Button>
+                  {isLoaded && !isSignedIn && (
+                    <div className="flex sm:hidden gap-2 w-full">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => {
+                          setAuthMode("sign-in")
+                          setShowAuthDialog(true)
+                        }}
+                      >
+                        Sign in
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => {
+                          setAuthMode("sign-up")
+                          setShowAuthDialog(true)
+                        }}
+                      >
+                        Sign up
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2 overflow-x-auto">

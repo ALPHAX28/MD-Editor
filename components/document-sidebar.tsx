@@ -266,8 +266,11 @@ export function DocumentSidebar({
               variant="outline"
               size="sm"
               onClick={() => {
-                setAuthMode("sign-in")
-                setShowAuthDialog(true)
+                onSheetOpenChange?.(false)
+                setTimeout(() => {
+                  setAuthMode("sign-in")
+                  setShowAuthDialog(true)
+                }, 100)
               }}
               className="bg-white text-black hover:bg-gray-100 dark:bg-white dark:text-black dark:hover:bg-gray-100"
             >
@@ -309,8 +312,11 @@ export function DocumentSidebar({
             variant="outline"
             size="sm"
             onClick={() => {
-              setAuthMode("sign-in")
-              setShowAuthDialog(true)
+              onSheetOpenChange?.(false)
+              setTimeout(() => {
+                setAuthMode("sign-in")
+                setShowAuthDialog(true)
+              }, 100)
             }}
           >
             Sign in to get started
