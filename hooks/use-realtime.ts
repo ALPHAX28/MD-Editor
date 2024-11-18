@@ -267,32 +267,38 @@ export function useRealtime(documentId: string, shareMode?: string) {
     }
   }
 
-  // Helper function to get exact caret coordinates
+  // Update the getCaretCoordinates function
   function getCaretCoordinates(textarea: HTMLTextAreaElement, position: number) {
-    const text = textarea.value
-    const beforeText = text.substring(0, position)
-    const lines = beforeText.split('\n')
+    const text = textarea.value.substring(0, position)
+    const lines = text.split('\n')
     const currentLine = lines.length - 1
-    const currentLineStart = text.lastIndexOf('\n', position - 1) + 1
-    const column = position - currentLineStart
+    const currentLineText = lines[currentLine]
+    const style = window.getComputedStyle(textarea)
+    
+    // Get exact measurements
+    const lineHeight = parseFloat(style.lineHeight)
+    const paddingTop = parseFloat(style.paddingTop)
+    const paddingLeft = parseFloat(style.paddingLeft)
+    const fontSize = parseFloat(style.fontSize)
+    const charWidth = fontSize * 0.550 // Approximate width of monospace character
 
-    // Get textarea's computed styles
-    const styles = window.getComputedStyle(textarea)
-    const lineHeight = parseFloat(styles.lineHeight)
-    const paddingTop = parseFloat(styles.paddingTop)
-    const paddingLeft = parseFloat(styles.paddingLeft)
-    const fontSize = parseFloat(styles.fontSize)
-
-    // Calculate exact position
-    const charWidth = fontSize * 0.550 // Monospace font character width
-    const x = Math.floor((column * charWidth) + paddingLeft)
-    const y = Math.floor((currentLine * lineHeight) + paddingTop)
+    // Calculate wrapped lines before current position
+    const textareaWidth = textarea.clientWidth - (paddingLeft * 2)
+    const charsPerLine = Math.floor(textareaWidth / charWidth)
+    
+    // Calculate wrapping for current line
+    const wrappedLines = Math.floor(currentLineText.length / charsPerLine)
+    const totalLines = currentLine + wrappedLines
+    
+    // Calculate cursor position
+    const linePosition = totalLines * lineHeight
+    const columnPosition = (currentLineText.length % charsPerLine) * charWidth
 
     return {
-      left: x,
-      top: y,
+      left: columnPosition + paddingLeft,
+      top: linePosition + paddingTop,
       line: currentLine,
-      column: column
+      column: currentLineText.length
     }
   }
 
