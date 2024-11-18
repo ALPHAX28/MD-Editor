@@ -1489,7 +1489,8 @@ ${previewContent}
                           prose-ul:list-disc prose-ol:list-decimal
                           prose-blockquote:border-l-4 prose-blockquote:border-gray-300
                           prose-table:border-collapse prose-td:border prose-th:border
-                          prose-img:rounded-lg"
+                          prose-img:rounded-lg
+                          [&>*]:break-words [&>p]:whitespace-pre-wrap [&>p]:break-words [&>p]:overflow-wrap-anywhere"
                         >
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm, remarkMath]}
