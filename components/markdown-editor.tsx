@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -70,6 +70,7 @@ import { UsersOnline } from '@/components/users-online'
 import { ActiveUsers } from '@/components/active-users'
 import { Cursor } from '@/hooks/use-realtime'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 interface CodeProps {
   node?: unknown;
@@ -137,8 +138,21 @@ export function MarkdownEditor({
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [localTheme, setLocalTheme] = useLocalStorage('md-editor-theme', 'dark')
+  const [isUnauthorized, setIsUnauthorized] = useState(false)
+  const [redirectPath, setRedirectPath] = useState<string>('')
 
-  const isReadOnly = isShared && shareMode === 'view'
+  useEffect(() => {
+    if (isShared && shareMode === 'edit' && !isSignedIn) {
+      setRedirectPath(window.location.pathname)
+    }
+  }, [isShared, shareMode, isSignedIn])
+
+  const isReadOnly = useMemo(() => {
+    if (!isShared) return false
+    if (shareMode === 'view') return true
+    if (shareMode === 'edit' && !isSignedIn) return true
+    return false
+  }, [isShared, shareMode, isSignedIn])
 
   const { 
     cursors, 
@@ -810,20 +824,19 @@ ${previewContent}
   }
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (!isReadOnly) {
-      const newContent = e.target.value
-      setContent(newContent)
-      
-      if (isChannelReady) {
-        console.log('Broadcasting content update:', {
-          content: newContent,
-          documentId: documentId || activeDocumentId,
-          isShared,
-          shareMode,
-          isChannelReady
-        })
-        updateContent(newContent)
+    if (isReadOnly) {
+      if (isShared && shareMode === 'edit' && !isSignedIn) {
+        setAuthMode("sign-in")
+        setShowAuthDialog(true)
       }
+      return
+    }
+
+    const newContent = e.target.value
+    setContent(newContent)
+    
+    if (isChannelReady) {
+      updateContent(newContent)
     }
   }
 
@@ -919,8 +932,41 @@ ${previewContent}
     // ... rest of the realtime setup ...
   }, [documentId, userId, isLoaded, shareMode, toast])
 
+  // Add this effect to handle auth for shared documents
+  useEffect(() => {
+    if (isShared && shareMode === 'edit' && !isSignedIn && isLoaded) {
+      setAuthMode("sign-in")
+      setShowAuthDialog(true)
+    }
+  }, [isShared, shareMode, isSignedIn, isLoaded])
+
+  const router = useRouter()
+
   return (
     <div className="relative h-full">
+      {isShared && shareMode === 'edit' && !isSignedIn && (
+        <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center">
+          {isUnauthorized ? (
+            <div className="text-center space-y-4">
+              <h2 className="text-2xl font-bold text-destructive">Unauthorized Access</h2>
+              <p className="text-muted-foreground">
+                You are not authorized to access this document.
+              </p>
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setAuthMode("sign-in")
+                  setShowAuthDialog(true)
+                  setIsUnauthorized(false)
+                }}
+              >
+                Sign in to continue
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      )}
+
       <div className="flex h-screen overflow-hidden">
         {!isShared && (
           <DocumentSidebar
@@ -1371,7 +1417,13 @@ ${previewContent}
                               "bg-background dark:bg-gray-800 dark:text-white",
                               isReadOnly && "cursor-not-allowed opacity-50"
                             )}
-                            placeholder={isReadOnly ? "This document is view-only" : "Start writing..."}
+                            placeholder={
+                              isShared && shareMode === 'edit' && !isSignedIn 
+                                ? "Please sign in to edit this document" 
+                                : isReadOnly 
+                                  ? "This document is view-only" 
+                                  : "Start writing..."
+                            }
                             readOnly={isReadOnly}
                           />
                           
@@ -1461,7 +1513,13 @@ ${previewContent}
           <AuthDialog 
             mode={authMode}
             isOpen={showAuthDialog}
-            onOpenChange={setShowAuthDialog}
+            onOpenChange={(open) => {
+              setShowAuthDialog(open)
+              if (!open && isShared && shareMode === 'edit' && !isSignedIn) {
+                setIsUnauthorized(true)
+              }
+            }}
+            redirectUrl={redirectPath}
           />
           {activeDocumentId && (
             <ShareDialog
@@ -1470,6 +1528,11 @@ ${previewContent}
               documentId={activeDocumentId}
               onShare={handleShare}
             />
+          )}
+          {isShared && shareMode === 'edit' && !isSignedIn && (
+            <div className="text-center text-sm text-muted-foreground mb-4">
+              Please sign in to edit this document
+            </div>
           )}
         </div>
       </div>

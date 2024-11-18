@@ -14,9 +14,10 @@ interface AuthDialogProps {
   mode: "sign-in" | "sign-up"
   isOpen: boolean
   onOpenChange: (open: boolean) => void
+  redirectUrl?: string
 }
 
-export function AuthDialog({ mode, isOpen, onOpenChange }: AuthDialogProps) {
+export function AuthDialog({ mode, isOpen, onOpenChange, redirectUrl }: AuthDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[400px] p-0 bg-background">
@@ -113,6 +114,7 @@ export function AuthDialog({ mode, isOpen, onOpenChange }: AuthDialogProps) {
                 },
               }
             }}
+            redirectUrl={redirectUrl}
           />
         </div>
       </DialogContent>
