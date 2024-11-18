@@ -1102,77 +1102,78 @@ ${previewContent}
                   )}
                 </div>
 
-                <div className="flex gap-2 overflow-x-auto">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleExport('PDF')}
-                    disabled={isPdfExporting}
-                    size="sm"
-                    className="whitespace-nowrap"
-                  >
-                    {isPdfExporting ? (
-                      <>
-                        <Loader className="h-4 w-4 mr-2 animate-spin" />
-                        <span className="sm:inline">PDF</span>
-                      </>
-                    ) : (
-                      <>
-                        <FileDown className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Export PDF</span>
-                        <span className="sm:hidden">PDF</span>
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => handleExport('Word')}
-                    disabled={isWordExporting}
-                    size="sm"
-                    className="whitespace-nowrap"
-                  >
-                    {isWordExporting ? (
-                      <>
-                        <Loader className="h-4 w-4 mr-2 animate-spin" />
-                        <span className="sm:inline">Word</span>
-                      </>
-                    ) : (
-                      <>
-                        <FileDown className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Export Word</span>
-                        <span className="sm:hidden">Word</span>
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => handleExport('HTML')}
-                    disabled={isHtmlExporting}
-                    size="sm"
-                    className="whitespace-nowrap"
-                  >
-                    {isHtmlExporting ? (
-                      <>
-                        <Loader className="h-4 w-4 mr-2 animate-spin" />
-                        <span className="sm:inline">HTML</span>
-                      </>
-                    ) : (
-                      <>
-                        <FileDown className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Export HTML</span>
-                        <span className="sm:hidden">HTML</span>
-                      </>
-                    )}
-                  </Button>
-                  {activeDocumentId && (
+                <div className="flex flex-wrap gap-2 overflow-x-auto">
+                  <div className="flex flex-wrap sm:flex-nowrap gap-2 flex-1 min-w-0">
                     <Button
                       variant="outline"
+                      onClick={() => handleExport('PDF')}
+                      disabled={isPdfExporting}
+                      size="sm"
+                      className="flex-1 sm:flex-initial min-w-0 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 transition-colors duration-200"
+                    >
+                      {isPdfExporting ? (
+                        <>
+                          <Loader className="h-4 w-4 mr-2 animate-spin" />
+                          <span className="truncate">PDF</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileDown className="h-4 w-4 sm:mr-2" />
+                          <span className="hidden sm:inline">Export PDF</span>
+                          <span className="sm:hidden">PDF</span>
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleExport('Word')}
+                      disabled={isWordExporting}
+                      size="sm"
+                      className="flex-1 sm:flex-initial min-w-0 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 transition-colors duration-200"
+                    >
+                      {isWordExporting ? (
+                        <>
+                          <Loader className="h-4 w-4 mr-2 animate-spin" />
+                          <span className="truncate">Word</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileDown className="h-4 w-4 sm:mr-2" />
+                          <span className="hidden sm:inline">Export Word</span>
+                          <span className="sm:hidden">Word</span>
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleExport('HTML')}
+                      disabled={isHtmlExporting}
+                      size="sm"
+                      className="flex-1 sm:flex-initial min-w-0 bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 transition-colors duration-200"
+                    >
+                      {isHtmlExporting ? (
+                        <>
+                          <Loader className="h-4 w-4 mr-2 animate-spin" />
+                          <span className="truncate">HTML</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileDown className="h-4 w-4 sm:mr-2" />
+                          <span className="hidden sm:inline">Export HTML</span>
+                          <span className="sm:hidden">HTML</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {activeDocumentId && (
+                    <Button
+                      variant="default"
                       onClick={() => setShowShareDialog(true)}
                       size="sm"
-                      className="whitespace-nowrap"
+                      className="sm:ml-auto w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200 flex items-center justify-center gap-2"
                     >
-                      <Share className="h-4 w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Share</span>
-                      <span className="sm:hidden">Share</span>
+                      <Share className="h-4 w-4" />
+                      <span>Share</span>
                     </Button>
                   )}
                 </div>
