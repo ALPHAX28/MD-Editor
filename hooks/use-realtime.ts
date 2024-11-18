@@ -8,6 +8,7 @@ export interface Cursor {
   y: number
   userId: string
   userName: string
+  imageUrl?: string
   isTextCursor: boolean
   selection: {
     start: number
@@ -23,6 +24,22 @@ export interface Presence {
   userName: string
   cursor: Cursor | null
   accessMode?: 'edit' | 'view'
+  imageUrl?: string
+  documentId?: string
+  lastSeen?: string
+  isActive?: boolean
+}
+
+type RealtimePresence = {
+  presence: Presence
+  userId: string
+  userName: string
+  cursor: Cursor | null
+  accessMode?: 'edit' | 'view'
+  imageUrl?: string
+  documentId?: string
+  lastSeen?: string
+  isActive?: boolean
 }
 
 export function useRealtime(documentId: string, shareMode?: string) {
@@ -39,16 +56,24 @@ export function useRealtime(documentId: string, shareMode?: string) {
   const lastUpdateTime = useRef<number>(0)
   const MIN_UPDATE_INTERVAL = 100 // Minimum time between updates in ms
 
-  useEffect(() => {
-    if (!isLoaded) {
-      console.log('Waiting for auth to load...')
-      return
+  // Add cleanup function for presence
+  const cleanup = () => {
+    if (channelRef.current) {
+      console.log('Cleaning up channel subscription')
+      channelRef.current.untrack() // Add this to remove presence
+      channelRef.current.unsubscribe()
+      channelRef.current = null
+      setIsChannelReady(false)
+      setCursors(new Map()) // Clear cursors
+      setPresenceState({}) // Clear presence state
     }
+  }
 
-    if (!documentId) {
-      console.error('No document ID provided for realtime')
-      return
-    }
+  useEffect(() => {
+    if (!isLoaded || !documentId) return
+
+    // Cleanup previous channel before creating new one
+    cleanup()
 
     const channelName = `document:${documentId}`
     const channel = supabase.channel(channelName, {
@@ -82,31 +107,66 @@ export function useRealtime(documentId: string, shareMode?: string) {
         }
       })
       .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<Presence>()
-        setPresenceState(state)
+        const state = channel.presenceState<RealtimePresence>()
+        const typedState: Record<string, Presence[]> = {}
+        
+        // Convert RealtimePresence to Presence
+        Object.entries(state).forEach(([key, value]) => {
+          typedState[key] = value.map(v => ({
+            userId: v.userId,
+            userName: v.userName,
+            cursor: v.cursor,
+            accessMode: v.accessMode,
+            imageUrl: v.imageUrl,
+            documentId: v.documentId,
+            lastSeen: v.lastSeen,
+            isActive: v.isActive
+          }))
+        })
+        
+        setPresenceState(typedState)
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        if (key !== userId) {
+        console.log('User joined:', { key, newPresences })
+        if (key !== userId && newPresences?.[0]) {
+          const presence = {
+            userId: newPresences[0].userId || '',
+            userName: newPresences[0].userName || '',
+            cursor: newPresences[0].cursor || null,
+            accessMode: newPresences[0].accessMode,
+            imageUrl: newPresences[0].imageUrl,
+            documentId: newPresences[0].documentId,
+            lastSeen: newPresences[0].lastSeen,
+            isActive: newPresences[0].isActive
+          } as Presence
+
           toast({
             title: "User joined",
-            description: `${newPresences[0].userName} has joined the session`,
+            description: `${presence.userName} has joined the session`,
             duration: 3000,
           })
         }
       })
       .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        if (key !== userId) {
+        console.log('User left:', { key, leftPresences })
+        if (key !== userId && leftPresences?.[0]) {
+          const presence = {
+            userId: leftPresences[0].userId || '',
+            userName: leftPresences[0].userName || '',
+            cursor: leftPresences[0].cursor || null,
+            accessMode: leftPresences[0].accessMode,
+            imageUrl: leftPresences[0].imageUrl,
+            documentId: leftPresences[0].documentId,
+            lastSeen: leftPresences[0].lastSeen,
+            isActive: leftPresences[0].isActive
+          } as Presence
+
           toast({
             title: "User left",
-            description: `${leftPresences[0].userName} has left the session`,
+            description: `${presence.userName} has left the session`,
             duration: 3000,
           })
         }
-        setCursors(prev => {
-          const next = new Map(prev)
-          next.delete(key)
-          return next
-        })
       })
       .on('broadcast', { event: 'access_revoked' }, ({ payload }) => {
         console.log('Received access_revoked event:', payload)
@@ -130,29 +190,33 @@ export function useRealtime(documentId: string, shareMode?: string) {
         
         // Track presence when subscribed
         if (userId && user) {
-          await channel.track({
+          const presenceData = {
             userId: userId,
             userName: user.fullName || user.username || 'Anonymous',
-            cursor: null,
+            imageUrl: user.imageUrl,
             accessMode: shareMode,
-            imageUrl: user.imageUrl // Add user's image URL
-          })
+            cursor: null,
+            documentId,
+            lastSeen: new Date().toISOString(),
+            isActive: true
+          }
+
+          console.log('Tracking presence:', presenceData)
+          
+          try {
+            await channel.track(presenceData)
+            console.log('Successfully tracked presence')
+          } catch (error) {
+            console.error('Failed to track presence:', error)
+          }
         }
       }
     })
 
     return () => {
-      if (updateTimeout.current) {
-        clearTimeout(updateTimeout.current)
-      }
-      if (channelRef.current) {
-        console.log('Cleaning up channel subscription')
-        setIsChannelReady(false)
-        channelRef.current.unsubscribe()
-        channelRef.current = null
-      }
+      cleanup()
     }
-  }, [documentId, userId, isLoaded])
+  }, [documentId, userId, isLoaded, user, shareMode]) // Add user to dependencies
 
   const updateCursor = async (cursor: Omit<Cursor, 'userId' | 'userName'>) => {
     if (!documentId || !user || !channelRef.current || !userId) return
@@ -168,6 +232,7 @@ export function useRealtime(documentId: string, shareMode?: string) {
           ...cursor,
           userId,
           userName: user.fullName || user.username,
+          imageUrl: user.imageUrl,
           isTextCursor: true,
           x: cursorCoords.left,
           y: cursorCoords.top,
@@ -219,9 +284,9 @@ export function useRealtime(documentId: string, shareMode?: string) {
     const fontSize = parseFloat(styles.fontSize)
 
     // Calculate exact position
-    const charWidth = fontSize * 0.6 // Monospace font character width
-    const x = (column * charWidth) + paddingLeft
-    const y = (currentLine * lineHeight) + paddingTop
+    const charWidth = fontSize * 0.550 // Monospace font character width
+    const x = Math.floor((column * charWidth) + paddingLeft)
+    const y = Math.floor((currentLine * lineHeight) + paddingTop)
 
     return {
       left: x,

@@ -221,6 +221,10 @@ export function MarkdownEditor({
     
     setContent(newText)
     
+    if (isChannelReady) {
+      updateContent(newText)
+    }
+    
     setTimeout(() => {
       textarea.focus()
       const newPosition = start + before.length + (selectedText || (before === '\n---\n' ? '' : 'text')).length + after.length
@@ -1021,12 +1025,21 @@ ${previewContent}
                       <>
                         {isSignedIn ? (
                           <div className="flex items-center gap-3">
-                            <ActiveUsers 
-                              presenceState={presenceState} 
-                              documentId={documentId || activeDocumentId} 
-                              isOwner={isSignedIn && !isShared && !!user}
-                              shareMode={shareMode}
-                            />
+                            {console.log('Presence State:', {
+                              presenceState,
+                              documentId,
+                              activeDocumentId,
+                              isOwner: isSignedIn && !isShared && !!user
+                            })}
+                            
+                            {Object.keys(presenceState).length > 0 && (
+                              <ActiveUsers 
+                                presenceState={presenceState} 
+                                documentId={documentId || activeDocumentId} 
+                                isOwner={isSignedIn && !isShared && !!user}
+                                shareMode={shareMode}
+                              />
+                            )}
                             <UserButton 
                               afterSignOutUrl={`${pathname}?reload=true`}
                             />

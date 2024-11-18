@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { RevokeAccessDialog } from "./revoke-access-dialog"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Presence } from "@/hooks/use-realtime"
 import { useUser } from "@clerk/nextjs"
 import { cn } from "@/lib/utils"
@@ -32,14 +32,27 @@ export function ActiveUsers({
   const [showRevokeDialog, setShowRevokeDialog] = useState(false)
   const { user } = useUser()
 
-  // Get all active users and filter out duplicates
+  // Filter users for current document and remove duplicates
   const activeUsers = Object.values(presenceState)
     .flat()
+    .filter((p): p is Presence => 
+      Boolean(p.userId) && 
+      p.documentId === documentId &&
+      Boolean(p)
+    )
     .filter((p, index, self) => 
-      p.userId && self.findIndex(s => s.userId === p.userId) === index
+      self.findIndex(s => s.userId === p.userId) === index
     )
 
-  // If there's only one user (current user) and no other participants, don't show anything
+  // Debug logging
+  console.log('Active users:', {
+    presenceState,
+    documentId,
+    activeUsers,
+    currentUserId: user?.id
+  })
+
+  // Only show if there are multiple users in this document
   if (activeUsers.length <= 1) {
     return null
   }
@@ -72,29 +85,10 @@ export function ActiveUsers({
     setShowRevokeDialog(true)
   }
 
-  const renderAvatar = (presenceUser: Presence) => {
-    const isCurrentUser = user && presenceUser.userId === user.id
-    const userColor = getUserColor(presenceUser.userId)
-
-    return (
-      <Avatar className={cn(
-        "h-8 w-8 ring-0 border-0",
-        isCurrentUser && "ring-0"
-      )}>
-        {isCurrentUser ? (
-          <AvatarImage src={user.imageUrl} className="ring-0 border-0" />
-        ) : null}
-        <AvatarFallback className={`${userColor} ring-0 border-0`}>
-          {getInitial(presenceUser.userName)}
-        </AvatarFallback>
-      </Avatar>
-    )
-  }
-
   return (
     <>
       <div className="flex items-center">
-        <div className="flex -space-x-3">
+        <div className="flex -space-x-3"> {/* Reduced space between avatars */}
           <AnimatePresence mode="popLayout">
             {activeUsers.map((presenceUser) => (
               <Popover key={presenceUser.userId}>
@@ -103,23 +97,35 @@ export function ActiveUsers({
                     initial={{ scale: 0, opacity: 0, x: -20 }}
                     animate={{ scale: 1, opacity: 1, x: 0 }}
                     exit={{ scale: 0, opacity: 0, x: 20 }}
-                    className="relative inline-block cursor-pointer ring-0 border-0"
+                    className="relative inline-block cursor-pointer"
                   >
-                    {renderAvatar(presenceUser)}
+                    <Avatar className="h-8 w-8 border-2 border-background">
+                      <AvatarImage src={presenceUser.imageUrl} />
+                      <AvatarFallback className={getUserColor(presenceUser.userId)}>
+                        {getInitial(presenceUser.userName)}
+                      </AvatarFallback>
+                    </Avatar>
                   </motion.div>
                 </PopoverTrigger>
                 <PopoverContent className="w-52 p-2" align="start">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      {renderAvatar(presenceUser)}
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={presenceUser.imageUrl} />
+                        <AvatarFallback className={getUserColor(presenceUser.userId)}>
+                          {getInitial(presenceUser.userName)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="space-y-0.5">
-                        <p className="text-sm font-medium">{presenceUser.userName}</p>
+                        <p className="text-sm font-medium">
+                          {presenceUser.userId === user?.id ? 'You' : presenceUser.userName}
+                        </p>
                         <p className="text-xs text-muted-foreground capitalize">
                           {presenceUser.accessMode || 'Viewing'}
                         </p>
                       </div>
                     </div>
-                    {isOwner && presenceUser.accessMode === 'edit' && (
+                    {isOwner && presenceUser.userId !== user?.id && presenceUser.accessMode === 'edit' && (
                       <Button
                         variant="ghost"
                         size="sm"
