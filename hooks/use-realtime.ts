@@ -35,6 +35,9 @@ export function useRealtime(documentId: string, shareMode?: string) {
   const [isChannelReady, setIsChannelReady] = useState(false)
   const [selections, setSelections] = useState<Map<string, Cursor['selection']>>(new Map())
   const [presenceState, setPresenceState] = useState<Record<string, Presence[]>>({})
+  const updateTimeout = useRef<NodeJS.Timeout>()
+  const lastUpdateTime = useRef<number>(0)
+  const MIN_UPDATE_INTERVAL = 100 // Minimum time between updates in ms
 
   useEffect(() => {
     if (!isLoaded) {
@@ -50,7 +53,7 @@ export function useRealtime(documentId: string, shareMode?: string) {
     const channelName = `document:${documentId}`
     const channel = supabase.channel(channelName, {
       config: {
-        broadcast: { self: true, ack: true },
+        broadcast: { self: false, ack: true },
         presence: { key: userId || 'anonymous' }
       }
     })
@@ -59,7 +62,15 @@ export function useRealtime(documentId: string, shareMode?: string) {
 
     channel
       .on('broadcast', { event: 'content' }, ({ payload }) => {
-        setContent(payload.content)
+        const now = Date.now()
+        if (now - lastUpdateTime.current < MIN_UPDATE_INTERVAL) {
+          return // Skip updates that are too close together
+        }
+        
+        if (payload.userId !== userId) { // Only update if from another user
+          setContent(payload.content)
+          lastUpdateTime.current = now
+        }
       })
       .on('broadcast', { event: 'cursor' }, ({ payload }) => {
         if (payload.userId !== userId) {
@@ -131,6 +142,9 @@ export function useRealtime(documentId: string, shareMode?: string) {
     })
 
     return () => {
+      if (updateTimeout.current) {
+        clearTimeout(updateTimeout.current)
+      }
       if (channelRef.current) {
         console.log('Cleaning up channel subscription')
         setIsChannelReady(false)
@@ -138,7 +152,7 @@ export function useRealtime(documentId: string, shareMode?: string) {
         channelRef.current = null
       }
     }
-  }, [documentId, userId, user, isLoaded, shareMode, toast])
+  }, [documentId, userId, isLoaded])
 
   const updateCursor = async (cursor: Omit<Cursor, 'userId' | 'userName'>) => {
     if (!documentId || !user || !channelRef.current || !userId) return
@@ -227,24 +241,31 @@ export function useRealtime(documentId: string, shareMode?: string) {
     }
 
     try {
-      console.log('Broadcasting content:', {
-        content: newContent,
-        channelName: `document:${documentId}`,
-        userId
-      })
+      // Add debouncing to prevent rapid updates
+      if (updateTimeout.current) {
+        clearTimeout(updateTimeout.current)
+      }
 
-      const result = await channelRef.current.send({
-        type: 'broadcast',
-        event: 'content',
-        payload: {
+      updateTimeout.current = setTimeout(async () => {
+        console.log('Broadcasting content:', {
           content: newContent,
-          userId: userId || 'anonymous',
-          timestamp: new Date().toISOString(),
-          documentId
-        }
-      })
+          channelName: `document:${documentId}`,
+          userId
+        })
 
-      console.log('Broadcast result:', result)
+        const result = await channelRef.current?.send({
+          type: 'broadcast',
+          event: 'content',
+          payload: {
+            content: newContent,
+            userId: userId || 'anonymous',
+            timestamp: new Date().toISOString(),
+            documentId
+          }
+        })
+
+        console.log('Broadcast result:', result)
+      }, 100) // Debounce time of 100ms
     } catch (error) {
       console.error('Error broadcasting content:', error)
       toast({

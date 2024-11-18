@@ -34,6 +34,7 @@ export function AuthDialog({ mode, isOpen, onOpenChange, redirectUrl }: AuthDial
         </DialogHeader>
         <div className="px-6 pb-6">
           <SignIn 
+            redirectUrl={redirectUrl}
             appearance={{
               baseTheme: dark,
               elements: {
@@ -114,7 +115,6 @@ export function AuthDialog({ mode, isOpen, onOpenChange, redirectUrl }: AuthDial
                 },
               }
             }}
-            redirectUrl={redirectUrl}
           />
         </div>
       </DialogContent>

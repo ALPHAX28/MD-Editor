@@ -142,10 +142,10 @@ export function MarkdownEditor({
   const [redirectPath, setRedirectPath] = useState<string>('')
 
   useEffect(() => {
-    if (isShared && shareMode === 'edit' && !isSignedIn) {
+    if (isShared) {
       setRedirectPath(window.location.pathname)
     }
-  }, [isShared, shareMode, isSignedIn])
+  }, [isShared])
 
   const isReadOnly = useMemo(() => {
     if (!isShared) return false

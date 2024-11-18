@@ -67,11 +67,9 @@ export function useAutosave(
       return
     }
 
-    setSaveStatus('saving')
-    
     const timeoutId = setTimeout(() => {
       saveContent()
-    }, 1000)
+    }, 2000)
 
     return () => {
       clearTimeout(timeoutId)
