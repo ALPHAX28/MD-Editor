@@ -1025,13 +1025,6 @@ ${previewContent}
                       <>
                         {isSignedIn ? (
                           <div className="flex items-center gap-3">
-                            {console.log('Presence State:', {
-                              presenceState,
-                              documentId,
-                              activeDocumentId,
-                              isOwner: isSignedIn && !isShared && !!user
-                            })}
-                            
                             {Object.keys(presenceState).length > 0 && (
                               <ActiveUsers 
                                 presenceState={presenceState} 
