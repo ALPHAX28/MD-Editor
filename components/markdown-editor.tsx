@@ -100,7 +100,7 @@ interface MarkdownEditorProps {
   isShared?: boolean
   shareMode?: string
   initialContent?: string
-  title?: string
+  title?: string | null
 }
 
 export function MarkdownEditor({ 

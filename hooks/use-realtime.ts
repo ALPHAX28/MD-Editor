@@ -285,6 +285,13 @@ export function useRealtime(documentId: string, shareMode?: string, isOwner?: bo
             isActive: leftPresences[0].isActive
           } as Presence
 
+          // Remove cursor when user leaves
+          setCursors(prev => {
+            const newCursors = new Map(prev);
+            newCursors.delete(presence.userId);
+            return newCursors;
+          });
+
           toast({
             title: "User left",
             description: `${presence.userName} has left the session`,
@@ -568,18 +575,26 @@ export function useRealtime(documentId: string, shareMode?: string, isOwner?: bo
     }
   }, []);
 
-  // Add this effect to handle logout cleanup
+  // Update the logout cleanup effect
   useEffect(() => {
     if (!isSignedIn && channelRef.current) {
       // Clear cursor and unsubscribe from channel when user logs out
       if (userId) {
+        // Broadcast cursor removal before cleanup
         channelRef.current.send({
           type: 'broadcast',
           event: 'cursor_remove',
           payload: { userId }
+        }).then(() => {
+          // Only cleanup after ensuring cursor removal is broadcast
+          cleanup();
+        }).catch((error) => {
+          console.error('Error removing cursor:', error);
+          cleanup();
         });
+      } else {
+        cleanup();
       }
-      cleanup();
     }
   }, [isSignedIn, userId]);
 
