@@ -864,8 +864,9 @@ ${previewContent}
     const newContent = e.target.value
     setContent(newContent)
     
-    // Only update content in realtime if we're in the correct document
-    if (isChannelReady && ((isShared && documentId) || (!isShared && documentId === activeDocumentId))) {
+    // Update content in realtime if channel is ready
+    // Remove the document ID check since we want updates in both directions
+    if (isChannelReady) {
       updateContent(newContent)
     }
   }
