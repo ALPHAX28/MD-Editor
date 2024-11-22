@@ -20,13 +20,15 @@ interface ActiveUsersProps {
   documentId?: string
   isOwner: boolean
   shareMode?: string
+  isAccessRevoked?: boolean
 }
 
 export function ActiveUsers({ 
   presenceState, 
   documentId,
   isOwner,
-  shareMode
+  shareMode,
+  isAccessRevoked = false
 }: ActiveUsersProps) {
   const [selectedUser, setSelectedUser] = useState<Presence | null>(null)
   const [showRevokeDialog, setShowRevokeDialog] = useState(false)
@@ -85,62 +87,93 @@ export function ActiveUsers({
     setShowRevokeDialog(true)
   }
 
+  const getUserPopoverContent = (presence: Presence) => {
+    const isCurrentUser = presence.userId === user?.id;
+    
+    // Get the current presence state for this user
+    const currentPresence = Object.values(presenceState)
+      .flat()
+      .find(p => p.userId === presence.userId);
+    
+    // Check both the current presence state and the passed presence
+    const accessMode = currentPresence?.accessMode?.toLowerCase() || presence.accessMode?.toLowerCase();
+    
+    // Debug log
+    console.log('User access state:', {
+      userId: presence.userId,
+      currentPresence,
+      accessMode,
+      isAccessRevoked,
+      isOwner,
+      isCurrentUser,
+      presenceState
+    });
+
+    return (
+      <div className="flex flex-col p-2 min-w-[200px]">
+        <div className="flex items-center gap-2">
+          <Avatar>
+            <AvatarImage src={presence.imageUrl} />
+            <AvatarFallback>
+              {presence.userName?.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium">
+              {presence.userName}
+              {isCurrentUser && " (you)"}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {accessMode === 'view' ? "View only" : "Can edit"}
+            </span>
+          </div>
+        </div>
+        
+        {/* Show revoke button if:
+            1. Current user is owner
+            2. Not showing for current user
+            3. Target user has edit access
+            4. Access isn't already revoked */}
+        {isOwner && 
+         !isCurrentUser && 
+         accessMode === 'edit' && 
+         !isAccessRevoked && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleRevokeAccess(presence)}
+            className="mt-2 w-full justify-start text-sm text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+          >
+            Revoke edit access
+          </Button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="flex items-center">
-        <div className="flex -space-x-3"> {/* Reduced space between avatars */}
-          <AnimatePresence mode="popLayout">
-            {activeUsers.map((presenceUser) => (
-              <Popover key={presenceUser.userId}>
+        <div className="flex -space-x-2">
+          {Object.values(presenceState).map((presences) =>
+            presences.map((presence) => (
+              <Popover key={presence.userId}>
                 <PopoverTrigger asChild>
-                  <motion.div
-                    initial={{ scale: 0, opacity: 0, x: -20 }}
-                    animate={{ scale: 1, opacity: 1, x: 0 }}
-                    exit={{ scale: 0, opacity: 0, x: 20 }}
-                    className="relative inline-block cursor-pointer"
-                  >
+                  <button className="relative inline-block">
                     <Avatar className="h-8 w-8 border-2 border-background">
-                      <AvatarImage src={presenceUser.imageUrl} />
-                      <AvatarFallback className={getUserColor(presenceUser.userId)}>
-                        {getInitial(presenceUser.userName)}
+                      <AvatarImage src={presence.imageUrl} />
+                      <AvatarFallback>
+                        {presence.userName?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                  </motion.div>
+                  </button>
                 </PopoverTrigger>
-                <PopoverContent className="w-52 p-2" align="start">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={presenceUser.imageUrl} />
-                        <AvatarFallback className={getUserColor(presenceUser.userId)}>
-                          {getInitial(presenceUser.userName)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-medium">
-                          {presenceUser.userId === user?.id ? 'You' : presenceUser.userName}
-                        </p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {presenceUser.accessMode || 'Viewing'}
-                        </p>
-                      </div>
-                    </div>
-                    {isOwner && presenceUser.userId !== user?.id && presenceUser.accessMode === 'edit' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start text-muted-foreground"
-                        onClick={() => handleRevokeAccess(presenceUser)}
-                      >
-                        <MoreHorizontal className="mr-2 h-4 w-4" />
-                        Manage access
-                      </Button>
-                    )}
-                  </div>
+                <PopoverContent className="w-auto p-0" align="start">
+                  {getUserPopoverContent(presence)}
                 </PopoverContent>
               </Popover>
-            ))}
-          </AnimatePresence>
+            ))
+          )}
         </div>
       </div>
 

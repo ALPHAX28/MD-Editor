@@ -32,7 +32,6 @@ export async function POST(
 
     // Update both the document and shared access to VIEW mode
     await prisma.$transaction([
-      // Update the shared access record
       prisma.sharedDocument.update({
         where: {
           documentId_userId: {
@@ -44,7 +43,6 @@ export async function POST(
           accessMode: 'VIEW'
         }
       }),
-      // Update the document's share mode
       prisma.document.update({
         where: {
           id: params.documentId
@@ -55,18 +53,17 @@ export async function POST(
       })
     ])
 
-    // Get user info for the notification
-    const targetShare = document.sharedWith.find(share => share.userId === targetUserId)
-    
-    // Notify the user through realtime
-    await supabase.channel(`document:${params.documentId}`).send({
+    // Broadcast access revocation
+    const channel = supabase.channel(`document:${params.documentId}`)
+    await channel.send({
       type: 'broadcast',
       event: 'access_revoked',
       payload: {
         documentId: params.documentId,
         targetUserId,
-        userName: targetShare?.userId || 'User',
-        forceReload: true
+        ownerId: userId,
+        timestamp: new Date().toISOString(),
+        newMode: 'VIEW'
       }
     })
 

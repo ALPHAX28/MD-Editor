@@ -70,7 +70,8 @@ import { UsersOnline } from '@/components/users-online'
 import { ActiveUsers } from '@/components/active-users'
 import { Cursor } from '@/hooks/use-realtime'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
+
 
 interface CodeProps {
   node?: unknown;
@@ -109,6 +110,9 @@ export function MarkdownEditor({
   initialContent = '',
   title
 }: MarkdownEditorProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  
   const [tab, setTab] = useState('write')
   const [isPdfExporting, setIsPdfExporting] = useState(false)
   const [isWordExporting, setIsWordExporting] = useState(false)
@@ -143,16 +147,9 @@ export function MarkdownEditor({
 
   useEffect(() => {
     if (isShared) {
-      setRedirectPath(window.location.pathname)
+      router.push(pathname);
     }
-  }, [isShared])
-
-  const isReadOnly = useMemo(() => {
-    if (!isShared) return false
-    if (shareMode === 'view') return true
-    if (shareMode === 'edit' && !isSignedIn) return true
-    return false
-  }, [isShared, shareMode, isSignedIn])
+  }, [isShared, pathname, router]);
 
   const { 
     cursors, 
@@ -160,10 +157,15 @@ export function MarkdownEditor({
     updateCursor, 
     updateContent, 
     isChannelReady,
-    presenceState 
+    presenceState,
+    isAccessRevoked,
+    currentAccessMode,
+    clearPresence,
+    removeCursor,
   } = useRealtime(
-    documentId || activeDocumentId || '',
-    shareMode
+    (isShared || documentId === activeDocumentId) ? documentId || '' : activeDocumentId || '',
+    (isShared || documentId === activeDocumentId) ? shareMode : 'none',
+    isSignedIn && !isShared && !!user
   )
 
   useEffect(() => {
@@ -400,17 +402,33 @@ ${previewContent}
   }
 
   const handleSignInSuccess = () => {
-    setShowAuthDialog(false)
+    setShowAuthDialog(false);
+    
+    // If we have a redirect path, use it
+    if (redirectPath) {
+      window.location.href = redirectPath;
+    }
+    
     toast({
       title: "Success",
       description: "Successfully signed in!",
       duration: 3000,
-    })
-  }
+    });
+  };
 
   const handleDocumentSelect = async (documentId: string) => {
     try {
       if (activeDocumentId === documentId) return;
+      
+      // Remove cursor before switching documents
+      if (!isShared) {
+        removeCursor?.();
+      }
+      
+      // Clear presence only if switching to a non-shared document
+      if (!isShared && documentId !== activeDocumentId) {
+        clearPresence?.();
+      }
       
       // Save current document before switching if there's unsaved content
       if (activeDocumentId && content) {
@@ -423,7 +441,7 @@ ${previewContent}
         });
       }
       
-      // Set new active document
+      // Update local state
       setActiveDocumentId(documentId);
       
       // Fetch the selected document
@@ -431,9 +449,10 @@ ${previewContent}
       if (!response.ok) throw new Error('Failed to load document');
       
       const document = await response.json();
-      
-      // Update content state with the fetched document's content
       setContent(document.content || '');
+      
+      // Update URL without triggering a navigation/refresh
+      window.history.pushState({}, '', `/editor/${documentId}`);
       
       toast({
         title: "Document loaded",
@@ -455,6 +474,7 @@ ${previewContent}
     if (!isSignedIn) return;
     
     try {
+      // Create new document
       const response = await fetch('/api/documents/create', {
         method: 'POST',
         headers: {
@@ -476,7 +496,12 @@ ${previewContent}
       // Update documents list with the new document
       setDocuments(prev => [...prev, { ...newDoc, title: title || 'Untitled Document' }]);
       setActiveDocumentId(newDoc.id);
+      
+      // Initialize content state
       setContent('');
+      
+      // Update URL without triggering a navigation/refresh
+      window.history.pushState({}, '', `/editor/${newDoc.id}`);
       
       toast({
         title: "Success",
@@ -828,7 +853,7 @@ ${previewContent}
   }
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (isReadOnly) {
+    if (!isEditingAllowed) {
       if (isShared && shareMode === 'edit' && !isSignedIn) {
         setAuthMode("sign-in")
         setShowAuthDialog(true)
@@ -839,7 +864,8 @@ ${previewContent}
     const newContent = e.target.value
     setContent(newContent)
     
-    if (isChannelReady) {
+    // Only update content in realtime if we're in the correct document
+    if (isChannelReady && ((isShared && documentId) || (!isShared && documentId === activeDocumentId))) {
       updateContent(newContent)
     }
   }
@@ -890,87 +916,217 @@ ${previewContent}
     }
   }
 
-  const [pathname, setPathname] = useState<string>('')
+  const isReadOnly = useMemo(() => {
+    if (!isShared) return false;
+    if (shareMode === 'view' || isAccessRevoked) return true;
+    if (shareMode === 'edit' && !isSignedIn) return true;
+    return false;
+  }, [isShared, shareMode, isSignedIn, isAccessRevoked]);
 
   useEffect(() => {
-    setPathname(window.location.pathname)
-  }, [])
-
-  useEffect(() => {
-    if (!isLoaded) {
-      console.log('Waiting for auth to load...')
-      return
-    }
-
-    if (!documentId) {
-      console.error('No document ID provided for realtime')
-      return
-    }
-
-    const channelName = `document:${documentId}`
-    const channel = supabase.channel(channelName, {
-      config: {
-        broadcast: { self: true, ack: true },
-        presence: { key: userId || 'anonymous' }
+    if (isAccessRevoked) {
+      // Update any UI states that need to change when access is revoked
+      setContent(content); // This will trigger a re-render with the new readonly state
+      
+      // Update the share mode display
+      if (shareMode === 'edit') {
+        toast({
+          title: "View Only",
+          description: "You are now in view-only mode",
+          duration: 3000,
+        });
       }
-    })
-
-    channel
-      .on('broadcast', { event: 'access_revoked' }, ({ payload }) => {
-        console.log('Received access_revoked event:', payload)
-        if (payload.targetUserId === userId) {
-          toast({
-            title: "Access Revoked",
-            description: "Your edit access has been revoked. The page will refresh.",
-            variant: "destructive",
-          })
-          
-          // Modified reload logic
-          setTimeout(() => {
-            window.location.href = '/editor'
-            window.location.reload() // Removed the parameter
-          }, 1500)
-        }
-      })
-
-    // ... rest of the realtime setup ...
-  }, [documentId, userId, isLoaded, shareMode, toast])
-
-  // Add this effect to handle auth for shared documents
-  useEffect(() => {
-    if (isShared && shareMode === 'edit' && !isSignedIn && isLoaded) {
-      setAuthMode("sign-in")
-      setShowAuthDialog(true)
     }
-  }, [isShared, shareMode, isSignedIn, isLoaded])
+  }, [isAccessRevoked]);
 
-  const router = useRouter()
+  const displayMode = useMemo(() => {
+    if (isAccessRevoked || currentAccessMode === 'view') {
+      return 'View only';
+    }
+    return shareMode === 'edit' ? 'Can edit' : 'View only';
+  }, [shareMode, isAccessRevoked, currentAccessMode]);
+
+  // Update the getUserButtonProps function
+  const getUserButtonProps = (isAccessRevoked: boolean) => ({
+    appearance: {
+      elements: {
+        userPreviewMainIdentifier: {
+          fontWeight: "600",
+          fontSize: "14px",
+        },
+        userPreviewSecondaryIdentifier: {
+          fontSize: "14px",
+        },
+        avatarBox: {
+          width: "32px",
+          height: "32px",
+        },
+        // Hide manage access button and text completely
+        userButtonPopoverActionButton: {
+          display: isAccessRevoked ? "none" : "flex",
+        },
+        userButtonPopoverFooter: {
+          display: isAccessRevoked ? "none" : "flex",
+        },
+        // Remove the edit/view text display
+        userButtonTrigger: {
+          "&::after": {
+            display: "none", // Hide the text
+          }
+        },
+        // Hide the manage access option in dropdown
+        userPreviewTextContainer: {
+          "& > *:last-child": {
+            display: "none",
+          }
+        },
+        // Modify dropdown items
+        userButtonPopoverCard: {
+          "& [role='menuitem']:last-child": {
+            display: isAccessRevoked ? "none" : "flex",
+          }
+        }
+      },
+    },
+    // Additional props to control the user profile menu
+    userProfileProps: {
+      appearance: {
+        elements: {
+          userProfileManageButtonIcon: {
+            display: "none",
+          },
+          userProfileManageButton: {
+            display: "none",
+          },
+          userProfileSectionPrimaryButton: {
+            display: isAccessRevoked ? "none" : "flex",
+          },
+          // Update the mode text in profile
+          userProfileData: {
+            "&::after": {
+              content: isAccessRevoked ? '"View only"' : '"Can edit"',
+              display: "block",
+              fontSize: "14px",
+              color: "var(--text-muted)",
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Add effect to handle initial URL document loading
+  useEffect(() => {
+    if (!isSignedIn || !isLoaded) return;
+
+    const loadDocumentFromUrl = async () => {
+      const urlParts = pathname.split('/');
+      const urlDocId = urlParts[urlParts.length - 1];
+      
+      if (urlDocId && urlDocId !== 'editor') {
+        await handleDocumentSelect(urlDocId);
+      }
+    };
+
+    loadDocumentFromUrl();
+  }, [isSignedIn, isLoaded, pathname]);
+
+  // Update the cleanup effect
+  useEffect(() => {
+    return () => {
+      if (!isShared) {
+        removeCursor?.();
+        clearPresence?.();
+      }
+    };
+  }, [activeDocumentId, isShared, removeCursor, clearPresence]);
+
+  // Update the isEditingAllowed check
+  const isEditingAllowed = useMemo(() => {
+    if (isShared) {
+      // In shared mode, allow editing if:
+      // 1. It's in edit mode
+      // 2. User is signed in
+      // 3. Not access revoked
+      return shareMode === 'edit' && isSignedIn && !isAccessRevoked;
+    }
+    
+    // In owner mode, allow editing if:
+    // 1. User is signed in
+    // 2. Not access revoked
+    return isSignedIn && !isAccessRevoked;
+  }, [isShared, shareMode, isSignedIn, isAccessRevoked]);
+
+  // Add an effect to handle document loading and realtime connection
+  useEffect(() => {
+    if (!isLoaded || !documentId) return;
+
+    // If this is a shared document or we're viewing the shared document
+    if (isShared || documentId === activeDocumentId) {
+      // Force a cleanup and reconnection
+      clearPresence?.();
+      
+      // Update active document ID to match the shared document
+      if (!isShared) {
+        setActiveDocumentId(documentId);
+      }
+    }
+  }, [documentId, isLoaded, isShared, activeDocumentId]);
+
+  // Add this effect to handle logout scenarios
+  useEffect(() => {
+    if (isShared && !isSignedIn) {
+      // Clear cursor and presence when user logs out in shared mode
+      removeCursor?.();
+      clearPresence?.();
+    }
+  }, [isSignedIn, isShared]);
+
+  // Add this effect to handle redirect path setting
+  useEffect(() => {
+    if (isShared && !isSignedIn) {
+      // Store the current URL for redirect after login
+      setRedirectPath(window.location.href);
+    }
+  }, [isShared, isSignedIn]);
 
   return (
     <div className="relative h-full">
-      {isShared && shareMode === 'edit' && !isSignedIn && (
+      {isShared && !isSignedIn && (
         <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center">
-          {isUnauthorized ? (
+          {showAuthDialog ? (
+            <AuthDialog 
+              mode="sign-in"
+              isOpen={showAuthDialog}
+              onOpenChange={(open) => {
+                setShowAuthDialog(open);
+                if (!open) {
+                  setIsUnauthorized(true);
+                }
+              }}
+              redirectUrl={window.location.href}
+            />
+          ) : (
             <div className="text-center space-y-4">
-              <h2 className="text-2xl font-bold text-destructive">Unauthorized Access</h2>
+              <h2 className="text-2xl font-bold">Sign in Required</h2>
               <p className="text-muted-foreground">
-                You are not authorized to access this document.
+                You need to sign in to edit this document
               </p>
               <Button 
                 variant="outline"
                 onClick={() => {
-                  setAuthMode("sign-in")
-                  setShowAuthDialog(true)
-                  setIsUnauthorized(false)
+                  setAuthMode("sign-in");
+                  setShowAuthDialog(true);
+                  setIsUnauthorized(false);
                 }}
               >
                 Sign in to continue
               </Button>
             </div>
-          ) : null}
+          )}
         </div>
       )}
-
+      
       <div className="flex h-screen overflow-hidden">
         {!isShared && (
           <DocumentSidebar
@@ -1030,11 +1186,17 @@ ${previewContent}
                                 presenceState={presenceState} 
                                 documentId={documentId || activeDocumentId} 
                                 isOwner={isSignedIn && !isShared && !!user}
-                                shareMode={shareMode}
+                                shareMode={isAccessRevoked ? 'view' : shareMode}
+                                isAccessRevoked={isAccessRevoked}
                               />
                             )}
                             <UserButton 
                               afterSignOutUrl={`${pathname}?reload=true`}
+                              {...getUserButtonProps(isAccessRevoked || currentAccessMode === 'view')}
+                              userProfileMode="navigation"
+                              userProfileUrl={undefined}
+                              afterMultiSessionSingleSignOutUrl={`${pathname}?reload=true`}
+                              key={`user-button-${isAccessRevoked}-${currentAccessMode}`}
                             />
                           </div>
                         ) : (
@@ -1357,7 +1519,7 @@ ${previewContent}
                       onClick={() => insertAtCursor('$', '$')}
                       title="Inline Math"
                     >
-                      <span className="font-mono">∑</span>
+                      <span className="font-mono"></span>
                     </Button>
                     <Button 
                       variant="ghost" 

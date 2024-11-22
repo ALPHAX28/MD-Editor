@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useToast } from '@/hooks/use-toast'
+import { useRouter } from 'next/navigation'
 
 export interface Cursor {
   x: number
@@ -42,7 +43,7 @@ type RealtimePresence = {
   isActive?: boolean
 }
 
-export function useRealtime(documentId: string, shareMode?: string) {
+export function useRealtime(documentId: string, shareMode?: string, isOwner?: boolean) {
   const { isLoaded, isSignedIn, userId } = useAuth()
   const { user } = useUser()
   const [cursors, setCursors] = useState<Map<string, Cursor>>(new Map())
@@ -55,6 +56,9 @@ export function useRealtime(documentId: string, shareMode?: string) {
   const updateTimeout = useRef<NodeJS.Timeout>()
   const lastUpdateTime = useRef<number>(0)
   const MIN_UPDATE_INTERVAL = 100 // Minimum time between updates in ms
+  const [isAccessRevoked, setIsAccessRevoked] = useState(false)
+  const [currentAccessMode, setCurrentAccessMode] = useState(shareMode)
+  const router = useRouter()
 
   // Add cleanup function for presence
   const cleanup = () => {
@@ -69,22 +73,137 @@ export function useRealtime(documentId: string, shareMode?: string) {
     }
   }
 
+  // Move updatePresenceState function definition here
+  const updatePresenceState = (targetUserId: string, newAccessMode: 'view' | 'edit') => {
+    setPresenceState(prev => {
+      const newState = { ...prev };
+      Object.keys(newState).forEach(key => {
+        newState[key] = newState[key].map(presence => {
+          if (presence.userId === targetUserId) {
+            return {
+              ...presence,
+              accessMode: newAccessMode
+            };
+          }
+          return presence;
+        });
+      });
+      return newState;
+    });
+  };
+
+  // Add this function to update presence for a specific user
+  const updateUserPresenceAndUI = (targetUserId: string, newAccessMode: 'view' | 'edit') => {
+    // Update presence state
+    setPresenceState(prev => {
+      const newState = { ...prev };
+      Object.keys(newState).forEach(key => {
+        newState[key] = newState[key].map(presence => {
+          if (presence.userId === targetUserId) {
+            return {
+              ...presence,
+              accessMode: newAccessMode
+            };
+          }
+          return presence;
+        });
+      });
+      return newState;
+    });
+
+    // If current user is the owner, update their UI state
+    if (isOwner) {
+      setCurrentAccessMode(newAccessMode);
+      // Force a re-render of the presence state
+      setTimeout(() => {
+        setPresenceState(prev => ({...prev}));
+      }, 0);
+    }
+  };
+
+  // Add this function to handle UI updates
+  const handleAccessRevocation = (targetUserId: string) => {
+    // Update presence state
+    setPresenceState(prev => {
+      const newState = { ...prev };
+      Object.keys(newState).forEach(key => {
+        newState[key] = newState[key].map(presence => {
+          if (presence.userId === targetUserId) {
+            return {
+              ...presence,
+              accessMode: 'view'
+            };
+          }
+          return presence;
+        });
+      });
+      return newState;
+    });
+
+    // Update cursors if needed
+    setCursors(prev => {
+      const newCursors = new Map(prev);
+      if (newCursors.has(targetUserId)) {
+        newCursors.delete(targetUserId);
+      }
+      return newCursors;
+    });
+  };
+
+  // Add this function to force UI updates
+  const forceUIUpdate = (targetUserId: string) => {
+    // Update presence state
+    setPresenceState(prev => {
+      const newState = { ...prev };
+      Object.keys(newState).forEach(key => {
+        newState[key] = newState[key].map(presence => {
+          if (presence.userId === targetUserId) {
+            return {
+              ...presence,
+              accessMode: 'view'
+            };
+          }
+          return presence;
+        });
+      });
+      return newState;
+    });
+
+    // Force re-render by updating currentAccessMode
+    if (targetUserId === userId) {
+      setCurrentAccessMode('view');
+      setIsAccessRevoked(true);
+    }
+  };
+
+  // Add this function to the useRealtime hook
+  const removeCursor = useCallback(() => {
+    if (!channelRef.current || !userId) return;
+
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'cursor_remove',
+      payload: { userId }
+    });
+  }, [userId]);
+
   useEffect(() => {
-    if (!isLoaded || !documentId) return
+    if (!isLoaded || !documentId) return;
 
     // Cleanup previous channel before creating new one
-    cleanup()
+    cleanup();
 
-    const channelName = `document:${documentId}`
+    const channelName = `document:${documentId}`;
     const channel = supabase.channel(channelName, {
       config: {
-        broadcast: { self: false, ack: true },
+        broadcast: { self: true, ack: true },
         presence: { key: userId || 'anonymous' }
       }
-    })
+    });
 
-    channelRef.current = channel
+    channelRef.current = channel;
 
+    // Add all channel event handlers here
     channel
       .on('broadcast', { event: 'content' }, ({ payload }) => {
         const now = Date.now()
@@ -92,9 +211,14 @@ export function useRealtime(documentId: string, shareMode?: string) {
           return // Skip updates that are too close together
         }
         
-        if (payload.userId !== userId) { // Only update if from another user
-          setContent(payload.content)
-          lastUpdateTime.current = now
+        if (payload.userId !== userId && payload.documentId === documentId) {
+          setContent(prev => {
+            if (prev !== payload.content) {
+              return payload.content;
+            }
+            return prev;
+          });
+          lastUpdateTime.current = now;
         }
       })
       .on('broadcast', { event: 'cursor' }, ({ payload }) => {
@@ -169,20 +293,90 @@ export function useRealtime(documentId: string, shareMode?: string) {
         }
       })
       .on('broadcast', { event: 'access_revoked' }, ({ payload }) => {
-        console.log('Received access_revoked event:', payload)
+        console.log('Received access_revoked event:', payload);
+
+        // Force UI update immediately
+        forceUIUpdate(payload.targetUserId);
+
+        // If current user is the target
         if (payload.targetUserId === userId) {
+          if (channelRef.current) {
+            channelRef.current.track({
+              userId,
+              userName: user?.fullName || user?.username || 'Anonymous',
+              imageUrl: user?.imageUrl,
+              accessMode: 'view',
+              cursor: null,
+              documentId,
+              lastSeen: new Date().toISOString(),
+              isActive: true
+            });
+          }
+
           toast({
             title: "Access Revoked",
-            description: "Your edit access has been revoked. The page will refresh.",
+            description: "Your edit access has been revoked. You can now only view this document.",
             variant: "destructive",
-          })
-          
+          });
+        }
+        // If current user is the owner
+        else if (payload.ownerId === userId) {
+          // Force immediate UI update for owner's view
+          setPresenceState(prev => {
+            const newState = { ...prev };
+            // Update the specific user's access mode
+            Object.keys(newState).forEach(key => {
+              newState[key] = newState[key].map(presence => {
+                if (presence.userId === payload.targetUserId) {
+                  return {
+                    ...presence,
+                    accessMode: 'view'
+                  };
+                }
+                return presence;
+              });
+            });
+            return newState;
+          });
+
+          // Force a re-render
           setTimeout(() => {
-            window.location.href = '/editor'
-            window.location.reload()
-          }, 1500)
+            setPresenceState(prev => ({...prev}));
+          }, 0);
+
+          toast({
+            title: "Access Updated",
+            description: "User's access has been revoked successfully.",
+            duration: 3000,
+          });
+        }
+
+        // Broadcast presence update to all clients
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'presence_sync',
+            payload: {
+              userId: payload.targetUserId,
+              accessMode: 'view',
+              timestamp: new Date().toISOString()
+            }
+          });
         }
       })
+      .on('broadcast', { event: 'presence_update' }, ({ payload }) => {
+        updatePresenceState(payload.userId, payload.accessMode as 'view' | 'edit');
+      })
+      .on('broadcast', { event: 'presence_sync' }, ({ payload }) => {
+        handleAccessRevocation(payload.userId);
+      })
+      .on('broadcast', { event: 'cursor_remove' }, ({ payload }) => {
+        setCursors(prev => {
+          const newCursors = new Map(prev);
+          newCursors.delete(payload.userId);
+          return newCursors;
+        });
+      });
 
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
@@ -216,10 +410,10 @@ export function useRealtime(documentId: string, shareMode?: string) {
     return () => {
       cleanup()
     }
-  }, [documentId, userId, isLoaded, user, shareMode]) // Add user to dependencies
+  }, [documentId, userId, isLoaded, user, shareMode, toast])
 
   const updateCursor = async (cursor: Omit<Cursor, 'userId' | 'userName'>) => {
-    if (!documentId || !user || !channelRef.current || !userId) return
+    if (!documentId || !user || !channelRef.current || !userId || isAccessRevoked) return
 
     try {
       const textarea = document.querySelector('textarea')
@@ -303,53 +497,91 @@ export function useRealtime(documentId: string, shareMode?: string) {
   }
 
   const updateContent = async (newContent: string) => {
-    if (!isChannelReady || !channelRef.current) {
-      console.log('Channel not ready:', {
-        isChannelReady,
-        hasChannel: !!channelRef.current
-      })
-      return
+    if (!isChannelReady || !channelRef.current || isAccessRevoked || !documentId) {
+      return;
     }
 
     try {
-      // Add debouncing to prevent rapid updates
+      // Update local content immediately
+      setContent(newContent);
+
+      // Debounce the broadcast and save operations
       if (updateTimeout.current) {
-        clearTimeout(updateTimeout.current)
+        clearTimeout(updateTimeout.current);
       }
 
       updateTimeout.current = setTimeout(async () => {
-        console.log('Broadcasting content:', {
-          content: newContent,
-          channelName: `document:${documentId}`,
-          userId
-        })
+        try {
+          // Add document ID to the broadcast payload
+          await channelRef.current?.send({
+            type: 'broadcast',
+            event: 'content',
+            payload: {
+              content: newContent,
+              userId: userId || 'anonymous',
+              timestamp: new Date().toISOString(),
+              documentId: documentId // Ensure documentId is included
+            }
+          });
 
-        const result = await channelRef.current?.send({
-          type: 'broadcast',
-          event: 'content',
-          payload: {
-            content: newContent,
-            userId: userId || 'anonymous',
-            timestamp: new Date().toISOString(),
-            documentId
+          // Save to database with explicit document ID check
+          const response = await fetch(`/api/documents/${documentId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              content: newContent,
+              documentId: documentId // Include documentId in the body
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to save document');
           }
-        })
 
-        console.log('Broadcast result:', result)
-      }, 100) // Debounce time of 100ms
+          lastUpdateTime.current = Date.now();
+        } catch (error) {
+          console.error('Error saving/broadcasting content:', error);
+          toast({
+            title: "Error",
+            description: "Failed to sync changes",
+            variant: "destructive"
+          });
+        }
+      }, 300);
+
     } catch (error) {
-      console.error('Error broadcasting content:', error)
-      toast({
-        title: "Error",
-        description: "Failed to sync changes",
-        variant: "destructive"
-      })
+      console.error('Error updating content:', error);
     }
-  }
+  };
 
   useEffect(() => {
     console.log('Content state changed:', content)
   }, [content])
+
+  const clearPresence = useCallback(() => {
+    if (channelRef.current) {
+      channelRef.current.untrack();
+      cursors.clear();
+      setPresenceState({});
+    }
+  }, []);
+
+  // Add this effect to handle logout cleanup
+  useEffect(() => {
+    if (!isSignedIn && channelRef.current) {
+      // Clear cursor and unsubscribe from channel when user logs out
+      if (userId) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'cursor_remove',
+          payload: { userId }
+        });
+      }
+      cleanup();
+    }
+  }, [isSignedIn, userId]);
 
   return {
     cursors,
@@ -358,6 +590,10 @@ export function useRealtime(documentId: string, shareMode?: string) {
     updateCursor,
     updateContent,
     isChannelReady,
-    presenceState
+    presenceState,
+    isAccessRevoked,
+    currentAccessMode,
+    clearPresence,
+    removeCursor,
   }
 } 
