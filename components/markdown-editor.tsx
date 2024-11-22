@@ -666,7 +666,7 @@ ${previewContent}
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       })
-
+      
       if (!response.ok) {
         throw new Error('Failed to save document')
       }
