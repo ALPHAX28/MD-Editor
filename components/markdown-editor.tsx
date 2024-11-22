@@ -100,7 +100,7 @@ interface MarkdownEditorProps {
   isShared?: boolean
   shareMode?: string
   initialContent?: string
-  title?: string | null
+  title?: string
 }
 
 export function MarkdownEditor({ 
@@ -666,7 +666,7 @@ ${previewContent}
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       })
-      
+
       if (!response.ok) {
         throw new Error('Failed to save document')
       }

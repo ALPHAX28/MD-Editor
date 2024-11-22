@@ -211,7 +211,7 @@ export function useRealtime(documentId: string, shareMode?: string, isOwner?: bo
           return // Skip updates that are too close together
         }
         
-        if (payload.userId !== userId) {
+        if (payload.userId !== userId && payload.documentId === documentId) {
           setContent(prev => {
             if (prev !== payload.content) {
               return payload.content;

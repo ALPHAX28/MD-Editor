@@ -35,7 +35,7 @@ export default async function EditorPage({ params }: { params: { documentId: str
     <MarkdownEditor 
       documentId={params.documentId}
       initialContent={document.content || ''}
-      title={document.title || undefined}
+      title={document.title}
     />
   )
 } 
