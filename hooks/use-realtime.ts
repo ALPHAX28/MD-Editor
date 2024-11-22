@@ -206,19 +206,10 @@ export function useRealtime(documentId: string, shareMode?: string, isOwner?: bo
     // Add all channel event handlers here
     channel
       .on('broadcast', { event: 'content' }, ({ payload }) => {
-        const now = Date.now()
-        if (now - lastUpdateTime.current < MIN_UPDATE_INTERVAL) {
-          return // Skip updates that are too close together
-        }
-        
+        // Skip debounce completely for content updates
         if (payload.userId !== userId) {
-          setContent(prev => {
-            if (prev !== payload.content) {
-              return payload.content;
-            }
-            return prev;
-          });
-          lastUpdateTime.current = now;
+          setContent(payload.content);
+          lastUpdateTime.current = Date.now();
         }
       })
       .on('broadcast', { event: 'cursor' }, ({ payload }) => {
@@ -512,54 +503,47 @@ export function useRealtime(documentId: string, shareMode?: string, isOwner?: bo
       // Update local content immediately
       setContent(newContent);
 
-      // Debounce the broadcast and save operations
+      // Clear any existing timeout
       if (updateTimeout.current) {
         clearTimeout(updateTimeout.current);
       }
 
-      updateTimeout.current = setTimeout(async () => {
-        try {
-          // Add document ID to the broadcast payload
-          await channelRef.current?.send({
-            type: 'broadcast',
-            event: 'content',
-            payload: {
-              content: newContent,
-              userId: userId || 'anonymous',
-              timestamp: new Date().toISOString(),
-              documentId: documentId // Ensure documentId is included
-            }
-          });
-
-          // Save to database with explicit document ID check
-          const response = await fetch(`/api/documents/${documentId}`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              content: newContent,
-              documentId: documentId // Include documentId in the body
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to save document');
-          }
-
-          lastUpdateTime.current = Date.now();
-        } catch (error) {
-          console.error('Error saving/broadcasting content:', error);
-          toast({
-            title: "Error",
-            description: "Failed to sync changes",
-            variant: "destructive"
-          });
+      // Send update immediately
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'content',
+        payload: {
+          content: newContent,
+          userId: userId || 'anonymous',
+          timestamp: new Date().toISOString(),
+          documentId: documentId
         }
-      }, 300);
+      });
 
+      // Save to database
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          content: newContent,
+          documentId: documentId
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save document');
+      }
+
+      lastUpdateTime.current = Date.now();
     } catch (error) {
       console.error('Error updating content:', error);
+      toast({
+        title: "Error",
+        description: "Failed to sync changes",
+        variant: "destructive"
+      });
     }
   };
 
