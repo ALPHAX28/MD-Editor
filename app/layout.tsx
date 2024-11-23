@@ -34,8 +34,6 @@ export default function RootLayout({
       appearance={{
         baseTheme: dark
       }}
-      allowMultipleSessionCookies={true}
-      allowMultipleSessions={true}
     >
       <html lang="en" suppressHydrationWarning>
         <body className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
