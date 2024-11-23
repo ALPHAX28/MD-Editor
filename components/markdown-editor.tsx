@@ -1308,7 +1308,7 @@ ${previewContent}
                       )}
                     </Button>
                   </div>
-                  {activeDocumentId && (
+                  {activeDocumentId && !isShared && (
                     <Button
                       variant="default"
                       onClick={() => setShowShareDialog(true)}
