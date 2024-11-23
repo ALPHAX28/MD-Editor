@@ -122,8 +122,6 @@ export function AuthDialog({ mode, isOpen, onOpenChange, redirectUrl }: AuthDial
                 },
               }
             }}
-            signUpUrl={null}
-            signInUrl={null}
           />
         </div>
       </DialogContent>
