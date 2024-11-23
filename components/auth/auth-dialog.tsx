@@ -18,6 +18,9 @@ interface AuthDialogProps {
 }
 
 export function AuthDialog({ mode, isOpen, onOpenChange, redirectUrl }: AuthDialogProps) {
+  const currentUrl = typeof window !== 'undefined' ? window.location.href : ''
+  const finalRedirectUrl = redirectUrl || currentUrl
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[400px] p-0 bg-background">
@@ -34,7 +37,7 @@ export function AuthDialog({ mode, isOpen, onOpenChange, redirectUrl }: AuthDial
         </DialogHeader>
         <div className="px-6 pb-6">
           <SignIn 
-            redirectUrl={redirectUrl}
+            redirectUrl={finalRedirectUrl}
             appearance={{
               baseTheme: dark,
               elements: {

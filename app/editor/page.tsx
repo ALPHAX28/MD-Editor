@@ -1,13 +1,14 @@
+'use client'
+
 import { MarkdownEditor } from "@/components/markdown-editor"
-import { auth } from "@clerk/nextjs"
-import { redirect } from "next/navigation"
+import { usePathname } from "next/navigation"
 
-export default async function EditorPage() {
-  const { userId } = auth()
+export default function EditorPage() {
+  const pathname = usePathname()
   
-  if (!userId) {
-    redirect('/sign-in')
-  }
-
-  return <MarkdownEditor />
+  return (
+    <MarkdownEditor 
+      redirectUrl={pathname}
+    />
+  )
 } 

@@ -260,11 +260,6 @@ export function MarkdownEditor({
   const handleExport = async (type: 'PDF' | 'Word' | 'HTML') => {
     if (!isLoaded) return;
 
-    if (!isSignedIn) {
-      setShowAuthDialog(true);
-      return;
-    }
-
     if (tab !== 'preview') {
       setDialogMessage(`Please switch to the Preview tab before exporting to ${type}.`)
       setShowDialog(true)
@@ -1030,7 +1025,7 @@ ${previewContent}
     };
 
     loadDocumentFromUrl();
-  }, [isSignedIn, isLoaded, pathname]);
+  }, [isLoaded, pathname]);
 
   // Update the cleanup effect
   useEffect(() => {
@@ -1042,21 +1037,18 @@ ${previewContent}
     };
   }, [activeDocumentId, isShared, removeCursor, clearPresence]);
 
-  // Update the isEditingAllowed check
+  // Modify the isEditingAllowed check to allow editing for guests
   const isEditingAllowed = useMemo(() => {
     if (isShared) {
-      // In shared mode, allow editing if:
+      // In shared mode, only allow editing if:
       // 1. It's in edit mode
-      // 2. User is signed in
-      // 3. Not access revoked
-      return shareMode === 'edit' && isSignedIn && !isAccessRevoked;
+      // 2. Not access revoked
+      return shareMode === 'edit' && !isAccessRevoked;
     }
     
-    // In owner mode, allow editing if:
-    // 1. User is signed in
-    // 2. Not access revoked
-    return isSignedIn && !isAccessRevoked;
-  }, [isShared, shareMode, isSignedIn, isAccessRevoked]);
+    // In regular mode, allow editing unless access is revoked
+    return !isAccessRevoked;
+  }, [isShared, shareMode, isAccessRevoked]);
 
   // Add an effect to handle document loading and realtime connection
   useEffect(() => {
@@ -1093,6 +1085,7 @@ ${previewContent}
 
   return (
     <div className="relative h-full">
+      {/*
       {isShared && !isSignedIn && (
         <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center">
           {showAuthDialog ? (
@@ -1127,6 +1120,7 @@ ${previewContent}
           )}
         </div>
       )}
+      */}
       
       <div className="flex h-screen overflow-hidden">
         {!isShared && (
@@ -1588,11 +1582,9 @@ ${previewContent}
                               isReadOnly && "cursor-not-allowed opacity-50"
                             )}
                             placeholder={
-                              isShared && shareMode === 'edit' && !isSignedIn 
-                                ? "Please sign in to edit this document" 
-                                : isReadOnly 
-                                  ? "This document is view-only" 
-                                  : "Start writing..."
+                              isReadOnly 
+                                ? "This document is view-only" 
+                                : "Start writing..."
                             }
                             readOnly={isReadOnly}
                           />
@@ -1682,15 +1674,10 @@ ${previewContent}
             </DialogContent>
           </Dialog>
           <AuthDialog 
-            mode={authMode}
+            mode="sign-in"
             isOpen={showAuthDialog}
-            onOpenChange={(open) => {
-              setShowAuthDialog(open)
-              if (!open && isShared && shareMode === 'edit' && !isSignedIn) {
-                setIsUnauthorized(true)
-              }
-            }}
-            redirectUrl={redirectPath}
+            onOpenChange={setShowAuthDialog}
+            redirectUrl={window.location.href}
           />
           {activeDocumentId && (
             <ShareDialog
@@ -1699,11 +1686,6 @@ ${previewContent}
               documentId={activeDocumentId}
               onShare={handleShare}
             />
-          )}
-          {isShared && shareMode === 'edit' && !isSignedIn && (
-            <div className="text-center text-sm text-muted-foreground mb-4">
-              Please sign in to edit this document
-            </div>
           )}
         </div>
       </div>
