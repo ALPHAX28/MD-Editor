@@ -1087,42 +1087,26 @@ ${previewContent}
 
   return (
     <div className="relative h-full">
-      {/*
       {isShared && !isSignedIn && (
         <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center">
-          {showAuthDialog ? (
-            <AuthDialog 
-              mode="sign-in"
-              isOpen={showAuthDialog}
-              onOpenChange={(open) => {
-                setShowAuthDialog(open);
-                if (!open) {
-                  setIsUnauthorized(true);
-                }
+          <div className="text-center space-y-4">
+            <h2 className="text-2xl font-bold">Sign in Required</h2>
+            <p className="text-muted-foreground">
+              You need to sign in to edit this document
+            </p>
+            <Button 
+              variant="outline"
+              onClick={() => {
+                setAuthMode("sign-in");
+                setShowAuthDialog(true);
+                setIsUnauthorized(false);
               }}
-              redirectUrl={window.location.href}
-            />
-          ) : (
-            <div className="text-center space-y-4">
-              <h2 className="text-2xl font-bold">Sign in Required</h2>
-              <p className="text-muted-foreground">
-                You need to sign in to edit this document
-              </p>
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  setAuthMode("sign-in");
-                  setShowAuthDialog(true);
-                  setIsUnauthorized(false);
-                }}
-              >
-                Sign in to continue
-              </Button>
-            </div>
-          )}
+            >
+              Sign in to continue
+            </Button>
+          </div>
         </div>
       )}
-      */}
       
       <div className="flex h-screen overflow-hidden">
         {!isShared && (
@@ -1516,7 +1500,7 @@ ${previewContent}
                       onClick={() => insertAtCursor('$', '$')}
                       title="Inline Math"
                     >
-                      <span className="font-mono"></span>
+                      <span className="h-4 w-4 flex items-center justify-center font-mono text-sm">∑</span>
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -1524,7 +1508,7 @@ ${previewContent}
                       onClick={() => insertAtCursor('\n$$\n', '\n$$\n')}
                       title="Math Block"
                     >
-                      <span className="font-mono">∫</span>
+                      <span className="h-4 w-4 flex items-center justify-center font-mono text-sm">∫</span>
                     </Button>
                   </div>
                 </div>

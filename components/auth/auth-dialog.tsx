@@ -37,7 +37,11 @@ export function AuthDialog({ mode, isOpen, onOpenChange, redirectUrl }: AuthDial
         </DialogHeader>
         <div className="px-6 pb-6">
           <SignIn 
+            routing="virtual"
+            path="/sign-in"
             redirectUrl={finalRedirectUrl}
+            afterSignInUrl={finalRedirectUrl}
+            afterSignUpUrl={finalRedirectUrl}
             appearance={{
               baseTheme: dark,
               elements: {
@@ -118,6 +122,8 @@ export function AuthDialog({ mode, isOpen, onOpenChange, redirectUrl }: AuthDial
                 },
               }
             }}
+            signUpUrl={null}
+            signInUrl={null}
           />
         </div>
       </DialogContent>
