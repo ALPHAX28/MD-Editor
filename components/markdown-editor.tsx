@@ -101,6 +101,7 @@ interface MarkdownEditorProps {
   shareMode?: string
   initialContent?: string
   title?: string
+  redirectUrl?: string
 }
 
 export function MarkdownEditor({ 
@@ -108,7 +109,8 @@ export function MarkdownEditor({
   isShared = false,
   shareMode = 'private',
   initialContent = '',
-  title
+  title,
+  redirectUrl
 }: MarkdownEditorProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -1677,7 +1679,7 @@ ${previewContent}
             mode="sign-in"
             isOpen={showAuthDialog}
             onOpenChange={setShowAuthDialog}
-            redirectUrl={window.location.href}
+            redirectUrl={redirectUrl || window.location.href}
           />
           {activeDocumentId && (
             <ShareDialog
