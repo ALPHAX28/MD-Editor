@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { PremiumButton } from "@/components/ui/premium-button"
 
 interface DocumentSidebarProps {
   documents: Document[]
@@ -91,15 +92,14 @@ function DocumentLimitIndicator({ currentCount, maxCount, onUpgradeClick }: Docu
             <p className="text-sm text-muted-foreground mb-2">
               You've reached the free plan limit
             </p>
-            <Button
+            <PremiumButton
               onClick={onUpgradeClick}
-              variant="premium"
-              className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white"
               size="sm"
+              className="w-full"
             >
               Upgrade to Pro
               <Sparkles className="h-4 w-4 ml-2" />
-            </Button>
+            </PremiumButton>
           </div>
         )}
       </div>
