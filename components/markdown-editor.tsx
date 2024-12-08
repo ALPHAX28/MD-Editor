@@ -28,7 +28,9 @@ import {
   Copy, 
   Check, 
   Menu, 
-  Share 
+  Share,
+  Printer,
+  Sparkles,
 } from 'lucide-react'
 import { saveAs } from 'file-saver'
 import ReactMarkdown from 'react-markdown'
@@ -71,6 +73,7 @@ import { ActiveUsers } from '@/components/active-users'
 import { Cursor } from '@/hooks/use-realtime'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 
 interface CodeProps {
@@ -104,6 +107,103 @@ interface MarkdownEditorProps {
   redirectUrl?: string
 }
 
+// Add this CSS class definition near the top of the component
+const pdfStyles = `
+@media print {
+  .prose {
+    max-width: none !important;
+    color: black;
+  }
+  
+  .prose h1 {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    font-size: 2em;
+  }
+  
+  .prose h2 {
+    margin-top: 1.25em;
+    margin-bottom: 0.5em;
+    font-size: 1.5em;
+  }
+  
+  .prose h3 {
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    font-size: 1.25em;
+  }
+  
+  .prose p {
+    margin: 1em 0;
+    line-height: 1.6;
+  }
+  
+  .prose ul, .prose ol {
+    margin: 1em 0;
+    padding-left: 2em;
+  }
+  
+  .prose li {
+    margin: 0.5em 0;
+    line-height: 1.6;
+  }
+  
+  .prose blockquote {
+    margin: 1em 0;
+    padding-left: 1em;
+    border-left: 4px solid #e5e7eb;
+  }
+  
+  .prose pre {
+    margin: 1em 0;
+    padding: 1em;
+    background-color: #f3f4f6;
+    border-radius: 4px;
+    overflow-x: auto;
+  }
+  
+  .prose code {
+    background-color: #f3f4f6;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-size: 0.9em;
+  }
+  
+  .prose table {
+    margin: 1em 0;
+    border-collapse: collapse;
+    width: 100%;
+  }
+  
+  .prose th, .prose td {
+    border: 1px solid #e5e7eb;
+    padding: 0.5em;
+    text-align: left;
+  }
+  
+  .prose img {
+    max-width: 100%;
+    height: auto;
+    margin: 1em auto;
+  }
+}
+`;
+
+// Move this helper function to the top, before any hooks
+const getSafeFilename = (documents: Document[], activeDocumentId: string | undefined) => {
+  let filename = 'untitled'
+  
+  if (activeDocumentId) {
+    const currentDoc = documents.find(doc => doc.id === activeDocumentId)
+    if (currentDoc?.title) {
+      // Sanitize the filename by removing invalid characters
+      filename = currentDoc.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+    }
+  }
+  
+  return filename
+}
+
 export function MarkdownEditor({ 
   documentId,
   isShared = false,
@@ -119,7 +219,14 @@ export function MarkdownEditor({
   const [isPdfExporting, setIsPdfExporting] = useState(false)
   const [isWordExporting, setIsWordExporting] = useState(false)
   const [isHtmlExporting, setIsHtmlExporting] = useState(false)
-  const { toPDF, targetRef } = usePDF({filename: 'markdown-document.pdf'})
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [activeDocumentId, setActiveDocumentId] = useState<string>()
+
+  // Now we can use getSafeFilename with the required parameters
+  const { toPDF, targetRef } = usePDF({
+    filename: `${getSafeFilename(documents, activeDocumentId)}.pdf`
+  })
+
   const [showDialog, setShowDialog] = useState(false)
   const [dialogMessage, setDialogMessage] = useState('')
   const { isLoaded, isSignedIn, userId } = useAuth();
@@ -128,9 +235,7 @@ export function MarkdownEditor({
   const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in")
   const { toast } = useToast()
   const { theme, setTheme } = useTheme()
-  const [documents, setDocuments] = useState<Document[]>([])
-  const [activeDocumentId, setActiveDocumentId] = useState<string>()
-  
+
   const { 
     content, 
     setContent, 
@@ -240,27 +345,93 @@ export function MarkdownEditor({
     const isDarkMode = document.documentElement.classList.contains('dark')
     
     try {
+      // First save the current content
+      if (documentId) {
+        try {
+          const response = await fetch(`/api/documents/${documentId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              content,
+              isAutosave: true
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to save document');
+          }
+        } catch (error) {
+          console.error('Error saving document:', error);
+          toast({
+            title: "Error",
+            description: "Failed to save changes before exporting",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
+      // Create a temporary container for PDF export
+      const tempContainer = document.createElement('div')
+      tempContainer.innerHTML = targetRef.current?.innerHTML || ''
+      document.body.appendChild(tempContainer)
+      
+      // Add print styles
+      const styleElement = document.createElement('style')
+      styleElement.innerHTML = pdfStyles
+      document.head.appendChild(styleElement)
+      
       if (isDarkMode) {
         document.documentElement.classList.remove('dark')
       }
       
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Add some delay to ensure styles are applied
+      await new Promise(resolve => setTimeout(resolve, 200))
       
-      await toPDF()
+      // Configure PDF options
+      const pdfOptions = {
+        filename: `${getSafeFilename(documents, activeDocumentId)}.pdf`,
+        page: {
+          margin: 40,
+          format: 'a4',
+        },
+        overrides: {
+          pdf: {
+            compress: true,
+            quality: 100,
+          },
+        },
+      }
       
+      await toPDF(pdfOptions)
+      
+      // Cleanup
       if (isDarkMode) {
         document.documentElement.classList.add('dark')
       }
+      document.head.removeChild(styleElement)
+      document.body.removeChild(tempContainer)
     } catch (error) {
+      console.error('PDF export error:', error)
       if (isDarkMode) {
         document.documentElement.classList.add('dark')
       }
-      throw error
+      toast({
+        title: "Error",
+        description: "Failed to export PDF",
+        variant: "destructive"
+      });
     }
   }
 
   const handleExport = async (type: 'PDF' | 'Word' | 'HTML') => {
-    if (!isLoaded) return;
+    if (!isLoaded || !isSignedIn) {
+      setAuthMode("sign-in");
+      setShowAuthDialog(true);
+      return;
+    }
 
     if (tab !== 'preview') {
       setDialogMessage(`Please switch to the Preview tab before exporting to ${type}.`)
@@ -285,6 +456,11 @@ export function MarkdownEditor({
       }
     } catch (error) {
       console.error(`Error exporting ${type}:`, error)
+      toast({
+        title: "Error",
+        description: `Failed to export to ${type}`,
+        variant: "destructive",
+      })
     } finally {
       setIsPdfExporting(false)
       setIsWordExporting(false)
@@ -308,43 +484,79 @@ export function MarkdownEditor({
         throw new Error('Preview content not found')
       }
 
-      // Create a Blob with the correct MIME type for Word
-      const mhtml = `MIME-Version: 1.0
-Content-Type: multipart/related; boundary="boundary-example"
+      // Create a clean HTML document for Word
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html xmlns:w="urn:schemas-microsoft-com:office:word">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <!-- Add Word specific namespace -->
+          <xml>
+            <w:WordDocument>
+              <w:View>Print</w:View>
+              <w:Zoom>100</w:Zoom>
+            </w:WordDocument>
+          </xml>
+          <style>
+            body {
+              font-family: 'Calibri', sans-serif;
+              font-size: 11pt;
+              line-height: 1.5;
+            }
+            h1 { font-size: 18pt; margin-top: 24pt; margin-bottom: 6pt; }
+            h2 { font-size: 16pt; margin-top: 18pt; margin-bottom: 6pt; }
+            h3 { font-size: 14pt; margin-top: 14pt; margin-bottom: 4pt; }
+            p { margin-top: 6pt; margin-bottom: 6pt; }
+            ul, ol { margin: 6pt 0; padding-left: 24pt; }
+            li { margin: 3pt 0; }
+            code {
+              font-family: 'Courier New', monospace;
+              background-color: #f5f5f5;
+              padding: 1pt 3pt;
+              border-radius: 3pt;
+            }
+            pre {
+              background-color: #f5f5f5;
+              padding: 6pt;
+              margin: 6pt 0;
+              border-radius: 3pt;
+              font-family: 'Courier New', monospace;
+              white-space: pre-wrap;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 12pt 0;
+            }
+            th, td {
+              border: 1pt solid #d1d1d1;
+              padding: 6pt;
+            }
+            th {
+              background-color: #f5f5f5;
+              font-weight: bold;
+            }
+            blockquote {
+              margin: 6pt 18pt;
+              padding-left: 12pt;
+              border-left: 3pt solid #d1d1d1;
+              color: #666666;
+            }
+          </style>
+        </head>
+        <body>
+          ${previewContent}
+        </body>
+        </html>
+      `
 
---boundary-example
-Content-Type: text/html; charset="utf-8"
-Content-Transfer-Encoding: quoted-printable
-
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  body { font-family: Calibri, Arial, sans-serif; }
-  h1 { font-size: 24pt; border-bottom: 1pt solid #eee; padding-bottom: 6pt; }
-  h2 { font-size: 18pt; border-bottom: 1pt solid #eee; padding-bottom: 6pt; }
-  h3 { font-size: 14pt; }
-  pre { background-color: #f6f8fa; padding: 12pt; margin: 12pt 0; }
-  code { font-family: 'Courier New', monospace; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1pt solid #ddd; padding: 8pt; }
-  th { background-color: #f6f8fa; }
-  blockquote { border-left: 4pt solid #ddd; margin: 0; padding: 0 12pt; }
-</style>
-</head>
-<body>
-${previewContent}
-</body>
-</html>
-
---boundary-example--`
-
-      const blob = new Blob([mhtml], {
-        type: 'application/vnd.ms-word;charset=utf-8'
+      // Create blob with Word-specific MIME type
+      const blob = new Blob([htmlContent], {
+        type: 'application/msword;charset=utf-8'
       })
       
-      await saveAs(blob, 'markdown-document.doc')
+      await saveAs(blob, `${getSafeFilename(documents, activeDocumentId)}.doc`)
 
       console.log("Word document exported successfully")
     } catch (error) {
@@ -360,37 +572,37 @@ ${previewContent}
       }
 
       const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Markdown Export</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-      line-height: 1.5;
-      max-width: 800px;
-      margin: 40px auto;
-      padding: 0 20px;
-    }
-    h1 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
-    h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
-    h3 { font-size: 1.25em; }
-    pre { background-color: #f6f8fa; padding: 16px; border-radius: 6px; overflow: auto; }
-    code { background-color: #f6f8fa; padding: 0.2em 0.4em; border-radius: 3px; font-family: monospace; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
-    th { background-color: #f6f8fa; }
-    blockquote { margin: 0; padding-left: 1em; border-left: 0.25em solid #ddd; color: #666; }
-  </style>
-</head>
-<body>
-  ${previewContent}
-</body>
-</html>`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Markdown Export</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+          }
+          h1 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+          h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+          h3 { font-size: 1.25em; }
+          pre { background-color: #f6f8fa; padding: 16px; border-radius: 6px; overflow: auto; }
+          code { background-color: #f6f8fa; padding: 0.2em 0.4em; border-radius: 3px; font-family: monospace; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #ddd; padding: 8px; }
+          th { background-color: #f6f8fa; }
+          blockquote { margin: 0; padding-left: 1em; border-left: 0.25em solid #ddd; color: #666; }
+        </style>
+      </head>
+      <body>
+        ${previewContent}
+      </body>
+      </html>`
 
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' })
-      await saveAs(blob, 'markdown-export.html')
+      await saveAs(blob, `${getSafeFilename(documents, activeDocumentId)}.html`)
 
       console.log("HTML exported successfully")
     } catch (error) {
@@ -1085,6 +1297,73 @@ ${previewContent}
     }
   }, [isShared, isSignedIn]);
 
+  // Add this helper function near the top of the component
+  const getExportButtonTooltip = (isSignedIn: boolean) => {
+    return isSignedIn ? undefined : "Please sign in to export";
+  };
+
+  const handlePrint = () => {
+    if (tab !== 'preview') {
+      setDialogMessage('Please switch to the Preview tab before printing.')
+      setShowDialog(true)
+      return
+    }
+
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      toast({
+        title: "Error",
+        description: "Failed to open print window. Please check your popup settings.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Add the same styles we use for PDF
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${getSafeFilename(documents, activeDocumentId)}</title>
+          <style>
+            ${pdfStyles}
+            @media print {
+              body {
+                padding: 20px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="prose">
+            ${targetRef.current?.innerHTML || ''}
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() {
+                window.close();
+              }
+            }
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+  }
+
+  // Add this helper function at the top of the component
+  const getUserTierBadge = (isSignedIn: boolean) => {
+    return (
+      <div className={cn(
+        "px-2 py-1 rounded-full text-xs font-medium",
+        isSignedIn ? "bg-secondary" : "bg-muted"
+      )}>
+        {isSignedIn ? "Free Plan" : "No Plan"}
+      </div>
+    );
+  };
+
   return (
     <div className="relative h-full">
       {isShared && !isSignedIn && (
@@ -1132,7 +1411,8 @@ ${previewContent}
               animate={{ opacity: 1, y: 0 }}
               className="max-w-5xl mx-auto space-y-4"
             >
-              <div className="flex flex-col gap-4 mb-6">
+              <div className="flex flex-col space-y-4">
+                {/* Top header with user info and controls */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="sm:hidden">
@@ -1157,11 +1437,43 @@ ${previewContent}
                     </NextLink>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2">
                     {isLoaded && (
                       <>
                         {isSignedIn ? (
                           <div className="flex items-center gap-3">
+                            {/* Only show pricing and plan badge if not in shared mode */}
+                            {!isShared && (
+                              <>
+                                <TooltipProvider delayDuration={0}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="premium"
+                                        size="sm"
+                                        onClick={() => {
+                                          toast({
+                                            title: "Coming Soon",
+                                            description: "Pro plan subscriptions will be available soon!",
+                                            duration: 3000,
+                                          });
+                                        }}
+                                        className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white border-0"
+                                      >
+                                        <Sparkles className="h-4 w-4" />
+                                        <span>Upgrade</span>
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">
+                                      View pricing plans
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+
+                                {getUserTierBadge(isSignedIn)}
+                              </>
+                            )}
+
                             {Object.keys(presenceState).length > 0 && (
                               <ActiveUsers 
                                 presenceState={presenceState} 
@@ -1215,109 +1527,143 @@ ${previewContent}
                     </Button>
                   </div>
                 </div>
-                
-                <div className="flex sm:hidden gap-2 w-full">
-                  {isLoaded && !isSignedIn && (
-                    <div className="flex sm:hidden gap-2 w-full">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1"
-                        onClick={() => {
-                          setAuthMode("sign-in")
-                          setShowAuthDialog(true)
-                        }}
+
+                {/* Action buttons row */}
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap sm:flex-nowrap gap-2 flex-1">
+                    {/* PDF Export Button */}
+                    <TooltipProvider delayDuration={0}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="w-full sm:w-auto">
+                            <Button
+                              variant="outline"
+                              onClick={() => handleExport('PDF')}
+                              disabled={isPdfExporting || !isSignedIn}
+                              size="sm"
+                              className="w-full sm:w-auto bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 transition-colors duration-200"
+                            >
+                              {isPdfExporting ? (
+                                <>
+                                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                                  <span className="truncate">PDF</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FileDown className="h-4 w-4 sm:mr-2" />
+                                  <span className="hidden sm:inline">Export PDF</span>
+                                  <span className="sm:hidden">PDF</span>
+                                </>
+                              )}
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="bg-popover">
+                          {!isSignedIn ? "Please sign in to export" : "Export as PDF"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    {/* Word Export Button */}
+                    <TooltipProvider delayDuration={0}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="w-full sm:w-auto">
+                            <Button
+                              variant="outline"
+                              onClick={() => handleExport('Word')}
+                              disabled={isWordExporting || !isSignedIn}
+                              size="sm"
+                              className="w-full sm:w-auto bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 transition-colors duration-200"
+                            >
+                              {isWordExporting ? (
+                                <>
+                                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                                  <span className="truncate">Word</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FileDown className="h-4 w-4 sm:mr-2" />
+                                  <span className="hidden sm:inline">Export Word</span>
+                                  <span className="sm:hidden">Word</span>
+                                </>
+                              )}
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="bg-popover">
+                          {!isSignedIn ? "Please sign in to export" : "Export as Word"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    {/* HTML Export Button */}
+                    <TooltipProvider delayDuration={0}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="w-full sm:w-auto">
+                            <Button
+                              variant="outline"
+                              onClick={() => handleExport('HTML')}
+                              disabled={isHtmlExporting || !isSignedIn}
+                              size="sm"
+                              className="w-full sm:w-auto bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 transition-colors duration-200"
+                            >
+                              {isHtmlExporting ? (
+                                <>
+                                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                                  <span className="truncate">HTML</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FileDown className="h-4 w-4 sm:mr-2" />
+                                  <span className="hidden sm:inline">Export HTML</span>
+                                  <span className="sm:hidden">HTML</span>
+                                </>
+                              )}
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="bg-popover">
+                          {!isSignedIn ? "Please sign in to export" : "Export as HTML"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+
+                  {activeDocumentId && !isShared && (
+                    <div className="flex gap-2 ml-auto">
+                      <TooltipProvider delayDuration={0}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="w-full sm:w-auto">
+                              <Button
+                                variant="outline"
+                                onClick={handlePrint}
+                                size="sm"
+                                className="w-full sm:w-auto bg-secondary text-secondary-foreground hover:bg-secondary/90 transition-colors duration-200 flex items-center justify-center gap-2"
+                              >
+                                <Printer className="h-4 w-4" />
+                                <span className="hidden sm:inline">Print</span>
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="bg-popover">
+                            Print document
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      <Button
+                        variant="default"
+                        onClick={() => setShowShareDialog(true)}
+                        size="sm"
+                        className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200 flex items-center justify-center gap-2"
                       >
-                        Sign in
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1"
-                        onClick={() => {
-                          setAuthMode("sign-up")
-                          setShowAuthDialog(true)
-                        }}
-                      >
-                        Sign up
+                        <Share className="h-4 w-4" />
+                        <span>Share</span>
                       </Button>
                     </div>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-2 overflow-x-auto">
-                  <div className="flex flex-wrap sm:flex-nowrap gap-2 flex-1 min-w-0">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleExport('PDF')}
-                      disabled={isPdfExporting}
-                      size="sm"
-                      className="flex-1 sm:flex-initial min-w-0 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 transition-colors duration-200"
-                    >
-                      {isPdfExporting ? (
-                        <>
-                          <Loader className="h-4 w-4 mr-2 animate-spin" />
-                          <span className="truncate">PDF</span>
-                        </>
-                      ) : (
-                        <>
-                          <FileDown className="h-4 w-4 sm:mr-2" />
-                          <span className="hidden sm:inline">Export PDF</span>
-                          <span className="sm:hidden">PDF</span>
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleExport('Word')}
-                      disabled={isWordExporting}
-                      size="sm"
-                      className="flex-1 sm:flex-initial min-w-0 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 transition-colors duration-200"
-                    >
-                      {isWordExporting ? (
-                        <>
-                          <Loader className="h-4 w-4 mr-2 animate-spin" />
-                          <span className="truncate">Word</span>
-                        </>
-                      ) : (
-                        <>
-                          <FileDown className="h-4 w-4 sm:mr-2" />
-                          <span className="hidden sm:inline">Export Word</span>
-                          <span className="sm:hidden">Word</span>
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleExport('HTML')}
-                      disabled={isHtmlExporting}
-                      size="sm"
-                      className="flex-1 sm:flex-initial min-w-0 bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 transition-colors duration-200"
-                    >
-                      {isHtmlExporting ? (
-                        <>
-                          <Loader className="h-4 w-4 mr-2 animate-spin" />
-                          <span className="truncate">HTML</span>
-                        </>
-                      ) : (
-                        <>
-                          <FileDown className="h-4 w-4 sm:mr-2" />
-                          <span className="hidden sm:inline">Export HTML</span>
-                          <span className="sm:hidden">HTML</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  {activeDocumentId && !isShared && (
-                    <Button
-                      variant="default"
-                      onClick={() => setShowShareDialog(true)}
-                      size="sm"
-                      className="sm:ml-auto w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200 flex items-center justify-center gap-2"
-                    >
-                      <Share className="h-4 w-4" />
-                      <span>Share</span>
-                    </Button>
                   )}
                 </div>
               </div>
@@ -1622,16 +1968,21 @@ ${previewContent}
                         ref={targetRef}
                       >
                         <article className="prose prose-slate max-w-none dark:prose-invert print:max-w-none
-                          prose-h1:text-3xl prose-h1:font-bold prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-4 prose-h1:mb-4
-                          prose-h2:text-2xl prose-h2:font-bold prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-3 prose-h2:mb-4
-                          prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800
-                          prose-code:text-gray-800 dark:prose-code:text-gray-200
-                          prose-code:bg-gray-100 dark:prose-code:bg-gray-800
-                          prose-code:rounded prose-code:px-1 prose-code:py-0.5
-                          prose-ul:list-disc prose-ol:list-decimal
-                          prose-blockquote:border-l-4 prose-blockquote:border-gray-300
-                          prose-table:border-collapse prose-td:border prose-th:border
-                          prose-img:rounded-lg
+                          prose-headings:font-bold
+                          prose-h1:text-3xl prose-h1:mt-8 prose-h1:mb-4
+                          prose-h2:text-2xl prose-h2:mt-6 prose-h2:mb-4
+                          prose-h3:text-xl prose-h3:mt-4 prose-h3:mb-3
+                          prose-p:my-4 prose-p:leading-7
+                          prose-pre:bg-muted prose-pre:p-4 prose-pre:rounded-lg
+                          prose-code:text-foreground prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md
+                          prose-ul:my-4 prose-ul:list-disc prose-ul:pl-6
+                          prose-ol:my-4 prose-ol:list-decimal prose-ol:pl-6
+                          prose-li:my-2 prose-li:leading-7
+                          prose-blockquote:border-l-4 prose-blockquote:border-muted prose-blockquote:pl-4 prose-blockquote:my-4
+                          prose-table:my-4 prose-table:w-full
+                          prose-th:border prose-th:border-muted prose-th:p-2 prose-th:bg-muted
+                          prose-td:border prose-td:border-muted prose-td:p-2
+                          prose-img:my-4 prose-img:rounded-lg
                           [&>*]:break-words [&>p]:whitespace-pre-wrap [&>p]:break-words [&>p]:overflow-wrap-anywhere"
                         >
                           <ReactMarkdown

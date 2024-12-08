@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Menu, Plus, File, ChevronLeft, ChevronRight, Search, Loader2 } from "lucide-react"
+import { Menu, Plus, File, ChevronLeft, ChevronRight, Search, Loader2, Sparkles, Check } from "lucide-react"
 import { useAuth, UserButton } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import {
@@ -53,6 +53,60 @@ const isMobile = () => {
   return window.innerWidth <= 768
 }
 
+const FREE_DOCUMENT_LIMIT = 5;
+
+interface DocumentLimitProps {
+  currentCount: number;
+  maxCount: number;
+  onUpgradeClick: () => void;
+}
+
+function DocumentLimitIndicator({ currentCount, maxCount, onUpgradeClick }: DocumentLimitProps) {
+  const percentage = (currentCount / maxCount) * 100;
+  
+  return (
+    <div className="p-4 border-t">
+      <div className="space-y-3">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">
+            {currentCount} / {maxCount} Documents
+          </span>
+          <span className="text-muted-foreground">
+            {percentage.toFixed(0)}%
+          </span>
+        </div>
+        <div className="h-2 bg-secondary rounded-full">
+          <div 
+            className={cn(
+              "h-full rounded-full transition-all duration-300",
+              percentage >= 90 ? "bg-red-500" : 
+              percentage >= 70 ? "bg-yellow-500" : 
+              "bg-green-500"
+            )}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+        {currentCount >= maxCount && (
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground mb-2">
+              You've reached the free plan limit
+            </p>
+            <Button
+              onClick={onUpgradeClick}
+              variant="premium"
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white"
+              size="sm"
+            >
+              Upgrade to Pro
+              <Sparkles className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function DocumentSidebar({
   documents,
   activeDocumentId,
@@ -85,6 +139,7 @@ export function DocumentSidebar({
   const [renameError, setRenameError] = useState("")
   const [newDocError, setNewDocError] = useState("")
   const { toast } = useToast()
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -178,35 +233,55 @@ export function DocumentSidebar({
   }
 
   const handleNewDocumentClick = () => {
-    setNewTitle('')
-    setShowNewDocDialog(true)
-  }
+    if (documents.length >= FREE_DOCUMENT_LIMIT) {
+      toast({
+        title: "Document Limit Reached",
+        description: "You've reached the free plan limit. Upgrade to Pro for unlimited documents.",
+        variant: "destructive",
+      });
+      handleUpgradeClick();
+      return;
+    }
+    setNewTitle('');
+    setShowNewDocDialog(true);
+  };
 
   const handleCreateDocument = async () => {
+    if (documents.length >= FREE_DOCUMENT_LIMIT) {
+      toast({
+        title: "Document Limit Reached",
+        description: "You've reached the free plan limit. Upgrade to Pro for unlimited documents.",
+        variant: "destructive",
+      });
+      setShowNewDocDialog(false);
+      handleUpgradeClick();
+      return;
+    }
+
     if (!newTitle.trim()) {
-      setNewDocError("Document name cannot be empty")
-      return
+      setNewDocError("Document name cannot be empty");
+      return;
     }
 
     try {
-      setIsCreating(true)
-      setNewDocError("")
-      await onNewDocument(newTitle.trim())
-      setShowNewDocDialog(false)
-      setNewTitle('')
+      setIsCreating(true);
+      setNewDocError("");
+      await onNewDocument(newTitle.trim());
+      setShowNewDocDialog(false);
+      setNewTitle('');
       toast({
         description: "Document created successfully",
-      })
+      });
     } catch (error) {
-      console.error('Failed to create document:', error)
+      console.error('Failed to create document:', error);
       toast({
         variant: "destructive",
         description: "Failed to create document",
-      })
+      });
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
-  }
+  };
 
   const handleDocumentSelect = async (id: string) => {
     setLoadingDocId(id)
@@ -214,6 +289,10 @@ export function DocumentSidebar({
     setLoadingDocId(null)
     onSheetOpenChange?.(false)
   }
+
+  const handleUpgradeClick = () => {
+    setShowUpgradeDialog(true);
+  };
 
   const SidebarContent = () => (
     <div className="h-full flex flex-col gap-2 p-4">
@@ -243,20 +322,28 @@ export function DocumentSidebar({
                 </Tooltip>
               </TooltipProvider>
 
-              <TooltipProvider>
+              <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleNewDocumentClick}
-                      className="dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800"
-                    >
-                      New
-                    </Button>
+                    <span className="inline-flex">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNewDocumentClick}
+                        className="dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={documents.length >= FREE_DOCUMENT_LIMIT}
+                      >
+                        New
+                      </Button>
+                    </span>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>New Document (Alt + N)</p>
+                  <TooltipContent 
+                    side="bottom" 
+                    className="bg-popover"
+                  >
+                    {documents.length >= FREE_DOCUMENT_LIMIT 
+                      ? "Upgrade to Pro for unlimited documents" 
+                      : "New Document (Alt + N)"}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -322,6 +409,14 @@ export function DocumentSidebar({
             Sign in to get started
           </Button>
         </div>
+      )}
+      
+      {isSignedIn && (
+        <DocumentLimitIndicator 
+          currentCount={documents.length}
+          maxCount={FREE_DOCUMENT_LIMIT}
+          onUpgradeClick={handleUpgradeClick}
+        />
       )}
     </div>
   )
@@ -534,6 +629,55 @@ export function DocumentSidebar({
         isOpen={showAuthDialog}
         onOpenChange={setShowAuthDialog}
       />
+
+      {/* Add the upgrade dialog */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Upgrade to Pro</DialogTitle>
+            <DialogDescription>
+              Unlock unlimited documents and premium features with our Pro plan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <h3 className="font-semibold">Pro Plan Features:</h3>
+              <ul className="space-y-2">
+                <li className="flex items-center">
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  Unlimited documents
+                </li>
+                <li className="flex items-center">
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  Priority support
+                </li>
+                <li className="flex items-center">
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  Advanced collaboration features
+                </li>
+                <li className="flex items-center">
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  Custom themes
+                </li>
+              </ul>
+            </div>
+            <Button 
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white"
+              onClick={() => {
+                // Add your subscription/payment logic here
+                toast({
+                  title: "Coming Soon",
+                  description: "Pro plan subscriptions will be available soon!",
+                  duration: 3000,
+                });
+              }}
+            >
+              Upgrade Now
+              <Sparkles className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 } 
