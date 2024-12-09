@@ -13,7 +13,7 @@ import {
   List, 
   Image as ImageIcon, 
   Link as LinkIcon, 
-  Table, 
+  Table as TableIcon, 
   FileDown, 
   Code, 
   Quote, 
@@ -74,7 +74,9 @@ import { Cursor } from '@/hooks/use-realtime'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-
+import { Document as DocxDocument, Paragraph, TextRun, HeadingLevel, Packer, AlignmentType, Table, TableRow, TableCell, BorderStyle } from 'docx';
+import { asBlob } from 'html-docx-js-typescript';
+import { FREE_DOCUMENT_LIMIT } from '@/lib/constants';
 
 interface CodeProps {
   node?: unknown;
@@ -105,6 +107,7 @@ interface MarkdownEditorProps {
   initialContent?: string
   title?: string
   redirectUrl?: string
+  documents?: any[];
 }
 
 // Add this CSS class definition near the top of the component
@@ -210,7 +213,8 @@ export function MarkdownEditor({
   shareMode = 'private',
   initialContent = '',
   title,
-  redirectUrl
+  redirectUrl,
+  documents
 }: MarkdownEditorProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -219,12 +223,12 @@ export function MarkdownEditor({
   const [isPdfExporting, setIsPdfExporting] = useState(false)
   const [isWordExporting, setIsWordExporting] = useState(false)
   const [isHtmlExporting, setIsHtmlExporting] = useState(false)
-  const [documents, setDocuments] = useState<Document[]>([])
+  const [localDocuments, setLocalDocuments] = useState<Document[]>([])
   const [activeDocumentId, setActiveDocumentId] = useState<string>()
 
   // Now we can use getSafeFilename with the required parameters
   const { toPDF, targetRef } = usePDF({
-    filename: `${getSafeFilename(documents, activeDocumentId)}.pdf`
+    filename: `${getSafeFilename(localDocuments, activeDocumentId)}.pdf`
   })
 
   const [showDialog, setShowDialog] = useState(false)
@@ -251,6 +255,7 @@ export function MarkdownEditor({
   const [localTheme, setLocalTheme] = useLocalStorage('md-editor-theme', 'dark')
   const [isUnauthorized, setIsUnauthorized] = useState(false)
   const [redirectPath, setRedirectPath] = useState<string>('')
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
   useEffect(() => {
     if (isShared) {
@@ -306,7 +311,7 @@ export function MarkdownEditor({
       const response = await fetch('/api/documents')
       if (!response.ok) throw new Error('Failed to fetch documents')
       const data = await response.json()
-      setDocuments(data)
+      setLocalDocuments(data)
     } catch (error) {
       console.error('Error fetching documents:', error)
     }
@@ -392,7 +397,7 @@ export function MarkdownEditor({
       
       // Configure PDF options
       const pdfOptions = {
-        filename: `${getSafeFilename(documents, activeDocumentId)}.pdf`,
+        filename: `${getSafeFilename(localDocuments, activeDocumentId)}.pdf`,
         page: {
           margin: 40,
           format: 'a4',
@@ -479,90 +484,138 @@ export function MarkdownEditor({
 
   const exportToWord = async () => {
     try {
-      const previewContent = document.querySelector('.prose')?.innerHTML
+      const previewContent = document.querySelector('.prose')?.innerHTML;
       if (!previewContent) {
-        throw new Error('Preview content not found')
+        throw new Error('Preview content not found');
       }
 
-      // Create a clean HTML document for Word
       const htmlContent = `
         <!DOCTYPE html>
-        <html xmlns:w="urn:schemas-microsoft-com:office:word">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <!-- Add Word specific namespace -->
-          <xml>
-            <w:WordDocument>
-              <w:View>Print</w:View>
-              <w:Zoom>100</w:Zoom>
-            </w:WordDocument>
-          </xml>
-          <style>
-            body {
-              font-family: 'Calibri', sans-serif;
-              font-size: 11pt;
-              line-height: 1.5;
-            }
-            h1 { font-size: 18pt; margin-top: 24pt; margin-bottom: 6pt; }
-            h2 { font-size: 16pt; margin-top: 18pt; margin-bottom: 6pt; }
-            h3 { font-size: 14pt; margin-top: 14pt; margin-bottom: 4pt; }
-            p { margin-top: 6pt; margin-bottom: 6pt; }
-            ul, ol { margin: 6pt 0; padding-left: 24pt; }
-            li { margin: 3pt 0; }
-            code {
-              font-family: 'Courier New', monospace;
-              background-color: #f5f5f5;
-              padding: 1pt 3pt;
-              border-radius: 3pt;
-            }
-            pre {
-              background-color: #f5f5f5;
-              padding: 6pt;
-              margin: 6pt 0;
-              border-radius: 3pt;
-              font-family: 'Courier New', monospace;
-              white-space: pre-wrap;
-            }
-            table {
-              border-collapse: collapse;
-              width: 100%;
-              margin: 12pt 0;
-            }
-            th, td {
-              border: 1pt solid #d1d1d1;
-              padding: 6pt;
-            }
-            th {
-              background-color: #f5f5f5;
-              font-weight: bold;
-            }
-            blockquote {
-              margin: 6pt 18pt;
-              padding-left: 12pt;
-              border-left: 3pt solid #d1d1d1;
-              color: #666666;
-            }
-          </style>
-        </head>
-        <body>
-          ${previewContent}
-        </body>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              @page {
+                size: A4;
+                margin: 1in;  /* Reduced margins */
+              }
+              body {
+                font-family: 'Calibri', sans-serif;
+                font-size: 11pt;
+                line-height: 1.5;
+                color: #000000;
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                max-width: 8.5in;  /* Standard page width */
+              }
+              .container {
+                width: 100%;
+                max-width: 6.5in;  /* Account for margins */
+                margin: 0 auto;
+              }
+              h1 { 
+                font-size: 18pt; 
+                font-weight: bold; 
+                margin: 24pt 0 6pt 0; 
+                color: #000000;
+                width: 100%;
+              }
+              h2 { 
+                font-size: 14pt; 
+                font-weight: bold; 
+                margin: 18pt 0 6pt 0; 
+                color: #000000;
+                width: 100%;
+              }
+              h3 { 
+                font-size: 12pt; 
+                font-weight: bold; 
+                margin: 12pt 0 6pt 0; 
+                color: #000000;
+                width: 100%;
+              }
+              p { 
+                margin: 0 0 10pt 0;
+                width: 100%;
+                text-align: justify;  /* Better text distribution */
+              }
+              ul, ol { 
+                margin: 6pt 0; 
+                padding-left: 24pt;
+                width: calc(100% - 24pt);  /* Account for padding */
+              }
+              li { 
+                margin: 4pt 0;
+                width: 100%;
+              }
+              pre, code {
+                font-family: 'Courier New', monospace;
+                font-size: 10pt;
+                background-color: #f5f5f5;
+                padding: 6pt;
+                margin: 6pt 0;
+                border: 1pt solid #e1e1e1;
+                width: calc(100% - 12pt);  /* Account for padding */
+                box-sizing: border-box;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+              }
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 12pt 0;
+                table-layout: fixed;  /* Fixed table layout */
+              }
+              th, td {
+                border: 1pt solid #000000;
+                padding: 6pt;
+                text-align: left;
+                word-wrap: break-word;  /* Allow word wrapping in cells */
+              }
+              th {
+                font-weight: bold;
+                background-color: #f5f5f5;
+              }
+              blockquote {
+                margin: 12pt 24pt;
+                padding-left: 12pt;
+                border-left: 3pt solid #666666;
+                color: #333333;
+                width: calc(100% - 36pt);  /* Account for margin and padding */
+              }
+              img {
+                max-width: 100%;
+                height: auto;
+                display: block;
+                margin: 12pt auto;
+              }
+              a {
+                color: #0563C1;
+                text-decoration: underline;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              ${previewContent}
+            </div>
+          </body>
         </html>
-      `
+      `;
 
       // Create blob with Word-specific MIME type
       const blob = new Blob([htmlContent], {
         type: 'application/msword;charset=utf-8'
-      })
+      });
       
-      await saveAs(blob, `${getSafeFilename(documents, activeDocumentId)}.doc`)
+      await saveAs(blob,`${getSafeFilename(localDocuments, activeDocumentId)}.doc`);
 
-      console.log("Word document exported successfully")
+      console.log("Word document exported successfully");
     } catch (error) {
-      throw error
+      throw error;
     }
-  }
+  };
 
   const exportToHtml = async () => {
     try {
@@ -602,7 +655,7 @@ export function MarkdownEditor({
       </html>`
 
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' })
-      await saveAs(blob, `${getSafeFilename(documents, activeDocumentId)}.html`)
+      await saveAs(blob, `${getSafeFilename(localDocuments, activeDocumentId)}.html`)
 
       console.log("HTML exported successfully")
     } catch (error) {
@@ -703,7 +756,7 @@ export function MarkdownEditor({
       const newDoc = await response.json();
       
       // Update documents list with the new document
-      setDocuments(prev => [...prev, { ...newDoc, title: title || 'Untitled Document' }]);
+      setLocalDocuments(prev => [...prev, { ...newDoc, title: title || 'Untitled Document' }]);
       setActiveDocumentId(newDoc.id);
       
       // Initialize content state
@@ -741,7 +794,7 @@ export function MarkdownEditor({
       if (!response.ok) throw new Error('Failed to rename document')
       
       const updatedDoc = await response.json()
-      setDocuments(prev => prev.map(doc => 
+      setLocalDocuments(prev => prev.map(doc => 
         doc.id === documentId ? { ...doc, title: newTitle } : doc
       ))
       
@@ -769,7 +822,7 @@ export function MarkdownEditor({
       
       if (!response.ok) throw new Error('Failed to delete document')
       
-      setDocuments(prev => prev.filter(doc => doc.id !== documentId))
+      setLocalDocuments(prev => prev.filter(doc => doc.id !== documentId))
       if (activeDocumentId === documentId) {
         setActiveDocumentId(undefined)
         setContent('')
@@ -855,7 +908,7 @@ export function MarkdownEditor({
   // Add this helper function to get current document title
   const getCurrentDocumentTitle = () => {
     if (!activeDocumentId) return "Untitled";
-    const currentDoc = documents.find(doc => doc.id === activeDocumentId);
+    const currentDoc = localDocuments.find(doc => doc.id === activeDocumentId);
     return currentDoc?.title || "Untitled";
   };
 
@@ -1324,7 +1377,7 @@ export function MarkdownEditor({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>${getSafeFilename(documents, activeDocumentId)}</title>
+          <title>${getSafeFilename(localDocuments, activeDocumentId)}</title>
           <style>
             ${pdfStyles}
             @media print {
@@ -1364,6 +1417,55 @@ export function MarkdownEditor({
     );
   };
 
+  // Add this function near other handlers
+  const handleNewDocumentClick = () => {
+    if (localDocuments.length >= FREE_DOCUMENT_LIMIT) {
+      toast({
+        title: "Document Limit Reached",
+        description: "You've reached the free plan limit. Upgrade to Pro for unlimited documents.",
+        variant: "destructive",
+      });
+      handleUpgradeClick();
+      return;
+    }
+    setShowNewDocDialog(true);
+  };
+
+  // Update the keyboard shortcut handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey) {
+        if (e.key === 'n') {
+          e.preventDefault();
+          if (isSignedIn) {
+            if (localDocuments.length >= FREE_DOCUMENT_LIMIT) {
+              toast({
+                title: "Document Limit Reached",
+                description: "You've reached the free plan limit. Upgrade to Pro for unlimited documents.",
+                variant: "destructive",
+              });
+              handleUpgradeClick();
+              return;
+            }
+            setShowNewDocDialog(true);
+          }
+        } else if (e.key === 's') {
+          e.preventDefault();
+          if (isSignedIn) {
+            setShowSearchDialog(true);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSignedIn, localDocuments.length, toast]);
+
+  const handleUpgradeClick = () => {
+    setShowUpgradeDialog(true);
+  };
+
   return (
     <div className="relative h-full">
       {isShared && !isSignedIn && (
@@ -1390,7 +1492,7 @@ export function MarkdownEditor({
       <div className="flex h-screen overflow-hidden">
         {!isShared && (
           <DocumentSidebar
-            documents={documents}
+            documents={localDocuments}
             activeDocumentId={activeDocumentId}
             onDocumentSelect={handleDocumentSelect}
             onNewDocument={handleNewDocument}
@@ -1529,139 +1631,64 @@ export function MarkdownEditor({
                 </div>
 
                 {/* Action buttons row */}
-                <div className="flex flex-wrap gap-2">
-                  <div className="flex flex-wrap sm:flex-nowrap gap-2 flex-1">
-                    {/* PDF Export Button */}
-                    <TooltipProvider delayDuration={0}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="w-full sm:w-auto">
-                            <Button
-                              variant="outline"
-                              onClick={() => handleExport('PDF')}
-                              disabled={isPdfExporting || !isSignedIn}
-                              size="sm"
-                              className="w-full sm:w-auto bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 transition-colors duration-200"
-                            >
-                              {isPdfExporting ? (
-                                <>
-                                  <Loader className="h-4 w-4 mr-2 animate-spin" />
-                                  <span className="truncate">PDF</span>
-                                </>
-                              ) : (
-                                <>
-                                  <FileDown className="h-4 w-4 sm:mr-2" />
-                                  <span className="hidden sm:inline">Export PDF</span>
-                                  <span className="sm:hidden">PDF</span>
-                                </>
-                              )}
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="bg-popover">
-                          {!isSignedIn ? "Please sign in to export" : "Export as PDF"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                <div className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+                  {/* Export buttons group */}
+                  <div className="grid grid-cols-3 gap-2 sm:flex-1 sm:max-w-[600px]">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleExport('PDF')}
+                      disabled={isPdfExporting || !isSignedIn}
+                      size="sm"
+                      className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 transition-colors duration-200"
+                    >
+                      <FileDown className="h-4 w-4 mr-2" />
+                      Export PDF
+                    </Button>
 
-                    {/* Word Export Button */}
-                    <TooltipProvider delayDuration={0}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="w-full sm:w-auto">
-                            <Button
-                              variant="outline"
-                              onClick={() => handleExport('Word')}
-                              disabled={isWordExporting || !isSignedIn}
-                              size="sm"
-                              className="w-full sm:w-auto bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 transition-colors duration-200"
-                            >
-                              {isWordExporting ? (
-                                <>
-                                  <Loader className="h-4 w-4 mr-2 animate-spin" />
-                                  <span className="truncate">Word</span>
-                                </>
-                              ) : (
-                                <>
-                                  <FileDown className="h-4 w-4 sm:mr-2" />
-                                  <span className="hidden sm:inline">Export Word</span>
-                                  <span className="sm:hidden">Word</span>
-                                </>
-                              )}
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="bg-popover">
-                          {!isSignedIn ? "Please sign in to export" : "Export as Word"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleExport('Word')}
+                      disabled={isWordExporting || !isSignedIn}
+                      size="sm"
+                      className="w-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 transition-colors duration-200"
+                    >
+                      <FileDown className="h-4 w-4 mr-2" />
+                      Export Word
+                    </Button>
 
-                    {/* HTML Export Button */}
-                    <TooltipProvider delayDuration={0}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="w-full sm:w-auto">
-                            <Button
-                              variant="outline"
-                              onClick={() => handleExport('HTML')}
-                              disabled={isHtmlExporting || !isSignedIn}
-                              size="sm"
-                              className="w-full sm:w-auto bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 transition-colors duration-200"
-                            >
-                              {isHtmlExporting ? (
-                                <>
-                                  <Loader className="h-4 w-4 mr-2 animate-spin" />
-                                  <span className="truncate">HTML</span>
-                                </>
-                              ) : (
-                                <>
-                                  <FileDown className="h-4 w-4 sm:mr-2" />
-                                  <span className="hidden sm:inline">Export HTML</span>
-                                  <span className="sm:hidden">HTML</span>
-                                </>
-                              )}
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="bg-popover">
-                          {!isSignedIn ? "Please sign in to export" : "Export as HTML"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleExport('HTML')}
+                      disabled={isHtmlExporting || !isSignedIn}
+                      size="sm"
+                      className="w-full bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 transition-colors duration-200"
+                    >
+                      <FileDown className="h-4 w-4 mr-2" />
+                      Export HTML
+                    </Button>
                   </div>
 
+                  {/* Print and Share buttons */}
                   {activeDocumentId && !isShared && (
-                    <div className="flex gap-2 ml-auto">
-                      <TooltipProvider delayDuration={0}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="w-full sm:w-auto">
-                              <Button
-                                variant="outline"
-                                onClick={handlePrint}
-                                size="sm"
-                                className="w-full sm:w-auto bg-secondary text-secondary-foreground hover:bg-secondary/90 transition-colors duration-200 flex items-center justify-center gap-2"
-                              >
-                                <Printer className="h-4 w-4" />
-                                <span className="hidden sm:inline">Print</span>
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="bg-popover">
-                            Print document
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-none">
+                      <Button
+                        variant="outline"
+                        onClick={handlePrint}
+                        size="sm"
+                        className="w-full sm:w-auto bg-secondary text-secondary-foreground hover:bg-secondary/90 transition-colors duration-200"
+                      >
+                        <Printer className="h-4 w-4 mr-2" />
+                        Print
+                      </Button>
 
                       <Button
                         variant="default"
                         onClick={() => setShowShareDialog(true)}
                         size="sm"
-                        className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200 flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200"
                       >
-                        <Share className="h-4 w-4" />
-                        <span>Share</span>
+                        <Share className="h-4 w-4 mr-2" />
+                        Share
                       </Button>
                     </div>
                   )}
@@ -1838,7 +1865,7 @@ export function MarkdownEditor({
                       size="sm" 
                       onClick={() => insertAtCursor('\n| Header 1 | Header 2 |\n| -------- | -------- |\n| Cell 1   | Cell 2   |\n')}
                     >
-                      <Table className="h-4 w-4" />
+                      <TableIcon className="h-4 w-4" />
                     </Button>
                     <Button 
                       variant="ghost" 

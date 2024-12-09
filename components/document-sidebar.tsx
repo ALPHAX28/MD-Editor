@@ -34,6 +34,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { PremiumButton } from "@/components/ui/premium-button"
+import { FREE_DOCUMENT_LIMIT } from '@/lib/constants'
 
 interface DocumentSidebarProps {
   documents: Document[]
@@ -53,8 +54,6 @@ const isMobile = () => {
   if (typeof window === 'undefined') return false
   return window.innerWidth <= 768
 }
-
-const FREE_DOCUMENT_LIMIT = 5;
 
 interface DocumentLimitProps {
   currentCount: number;
@@ -295,60 +294,89 @@ export function DocumentSidebar({
   };
 
   const SidebarContent = () => (
-    <div className="h-full flex flex-col gap-2 p-4">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="font-semibold">Documents</h2>
-        <div className="flex items-center gap-2">
-          {isSignedIn ? (
-            <>
-              <TooltipProvider delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setShowSearchDialog(true)}
-                      className="h-8 w-8"
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent 
-                    side="bottom" 
-                    className="hidden sm:block"
-                  >
-                    Search (Alt + S)
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+    <div className="h-full flex flex-col bg-background">
+      <div className="sticky top-0 bg-background z-10 border-b px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-base truncate">Documents</h2>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isSignedIn ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowSearchDialog(true)
+                    onSheetOpenChange?.(false)
+                  }}
+                  className="h-8 w-8 p-0"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
 
-              <TooltipProvider delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleNewDocumentClick}
-                        className="dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={documents.length >= FREE_DOCUMENT_LIMIT}
-                      >
-                        New
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent 
-                    side="bottom" 
-                    className="bg-popover"
-                  >
-                    {documents.length >= FREE_DOCUMENT_LIMIT 
-                      ? "Upgrade to Pro for unlimited documents" 
-                      : "New Document (Alt + N)"}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </>
-          ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleNewDocumentClick()
+                    onSheetOpenChange?.(false)
+                  }}
+                  className="h-8 whitespace-nowrap flex items-center dark:bg-white dark:text-black dark:hover:bg-gray-200 bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={documents.length >= FREE_DOCUMENT_LIMIT}
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  <span className="hidden sm:inline">New</span>
+                  <span className="sm:hidden">New</span>
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onSheetOpenChange?.(false)
+                  setTimeout(() => {
+                    setAuthMode("sign-in")
+                    setShowAuthDialog(true)
+                  }, 100)
+                }}
+                className="h-8 whitespace-nowrap bg-white text-black hover:bg-gray-100 dark:bg-white dark:text-black dark:hover:bg-gray-100"
+              >
+                Sign in
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto">
+        {isSignedIn ? (
+          <div className="p-4">
+            {isLoadingDocs ? (
+              <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
+                <Loader2 className="h-10 w-10 animate-spin" />
+                <p className="text-sm text-muted-foreground font-medium">
+                  Loading documents...
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {documents.map((doc) => (
+                  <DocumentItem
+                    key={doc.id}
+                    document={doc}
+                    isActive={doc.id === activeDocumentId}
+                    isLoading={doc.id === loadingDocId}
+                    onSelect={handleDocumentSelect}
+                    onDelete={handleDeleteClick}
+                    onRename={handleRenameClick}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-center text-muted-foreground p-4">
+            <p>&quot;Sign in to create and manage multiple documents&quot;</p>
             <Button
               variant="outline"
               size="sm"
@@ -359,64 +387,24 @@ export function DocumentSidebar({
                   setShowAuthDialog(true)
                 }, 100)
               }}
-              className="bg-white text-black hover:bg-gray-100 dark:bg-white dark:text-black dark:hover:bg-gray-100"
             >
-              Sign in
+              Sign in to get started
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
       
-      {isSignedIn ? (
-        <ScrollArea className="flex-1">
-          {isLoadingDocs ? (
-            <div className="flex flex-col items-center justify-center h-[calc(100vh-120px)] gap-3">
-              <Loader2 className="h-10 w-10 animate-spin" />
-              <p className="text-sm text-muted-foreground font-medium">
-                Loading documents...
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {documents.map((doc) => (
-                <DocumentItem
-                  key={doc.id}
-                  document={doc}
-                  isActive={doc.id === activeDocumentId}
-                  isLoading={doc.id === loadingDocId}
-                  onSelect={handleDocumentSelect}
-                  onDelete={handleDeleteClick}
-                  onRename={handleRenameClick}
-                />
-              ))}
-            </div>
-          )}
-        </ScrollArea>
-      ) : (
-        <div className="flex flex-col items-center justify-center h-full gap-4 text-center text-muted-foreground p-4">
-          <p>&quot;Sign in to create and manage multiple documents&quot;</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              onSheetOpenChange?.(false)
-              setTimeout(() => {
-                setAuthMode("sign-in")
-                setShowAuthDialog(true)
-              }, 100)
-            }}
-          >
-            Sign in to get started
-          </Button>
-        </div>
-      )}
-      
       {isSignedIn && (
-        <DocumentLimitIndicator 
-          currentCount={documents.length}
-          maxCount={FREE_DOCUMENT_LIMIT}
-          onUpgradeClick={handleUpgradeClick}
-        />
+        <div className="sticky bottom-0 bg-background border-t mt-auto">
+          <DocumentLimitIndicator 
+            currentCount={documents.length}
+            maxCount={FREE_DOCUMENT_LIMIT}
+            onUpgradeClick={() => {
+              handleUpgradeClick()
+              onSheetOpenChange?.(false)
+            }}
+          />
+        </div>
       )}
     </div>
   )
@@ -448,11 +436,11 @@ export function DocumentSidebar({
       <Sheet 
         open={isSheetOpen} 
         onOpenChange={onSheetOpenChange}
-        modal={false}
+        modal={true}
       >
         <SheetContent 
           side="left" 
-          className="w-[280px] p-0"
+          className="w-[280px] p-0 border-r"
         >
           <SidebarContent />
         </SheetContent>

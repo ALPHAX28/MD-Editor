@@ -1,0 +1,1 @@
+export const FREE_DOCUMENT_LIMIT = 5; 
