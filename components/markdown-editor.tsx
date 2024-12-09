@@ -256,6 +256,8 @@ export function MarkdownEditor({
   const [isUnauthorized, setIsUnauthorized] = useState(false)
   const [redirectPath, setRedirectPath] = useState<string>('')
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [showNewDocDialog, setShowNewDocDialog] = useState(false);
+  const [showSearchDialog, setShowSearchDialog] = useState(false);
 
   useEffect(() => {
     if (isShared) {
